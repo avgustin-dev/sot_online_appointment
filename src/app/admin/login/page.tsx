@@ -7,14 +7,13 @@ import { useStore } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { EmblemKR } from "@/components/brand/Emblem";
 import { LangSwitch } from "@/components/ui/LangSwitch";
-import { env, useRemoteApi } from "@/config/env";
 import { backend } from "@/api/client";
 import { ApiError } from "@/api/http";
 import { setAccessToken } from "@/api/session";
 import { staffHomePath } from "@/lib/staff";
 
 export default function AdminLoginPage() {
-  const { login, hydrateStaffSession, currentUser, ready, state } = useStore();
+  const { hydrateStaffSession, currentUser, ready, state } = useStore();
   const router = useRouter();
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
@@ -34,27 +33,12 @@ export default function AdminLoginPage() {
     setError("");
     setBusy(true);
     try {
-      if (useRemoteApi) {
-        const data = await backend.auth.login({
-          login: loginName.trim(),
-          password,
-        });
-        setAccessToken(data.token);
-        hydrateStaffSession(data.user);
-        return;
-      }
-      if (!env.demo) {
-        setError(
-          isKy
-            ? "Кызматтык кирүү сервер аркылуу гана мүмкүн."
-            : "Служебный вход выполняется через сервер."
-        );
-        return;
-      }
-      const res = login(loginName, password);
-      if (!res.ok) {
-        setError(res.error || (isKy ? "Кирүү катасы" : "Ошибка входа"));
-      }
+      const data = await backend.auth.login({
+        login: loginName.trim(),
+        password,
+      });
+      setAccessToken(data.token);
+      hydrateStaffSession(data.user);
     } catch (err) {
       const message =
         err instanceof ApiError

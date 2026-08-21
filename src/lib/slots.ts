@@ -7,7 +7,7 @@ import {
   parseISO,
   startOfDay,
 } from "date-fns";
-import type { Appointment, CalendarSettings, ServiceContent, TimeSlot } from "./types";
+import type { CalendarSettings, ServiceContent, TimeSlot } from "./types";
 import { resolveTargetWindow } from "./targets";
 
 /** Минуты → "HH:mm" */
@@ -83,58 +83,6 @@ export function listAvailableDates(
     if (isReceptionDate(key, settings, targetId, sc)) dates.push(key);
   }
   return dates;
-}
-
-export function getBookedSlotKeys(
-  appointments: Appointment[],
-  date: string,
-  excludeId?: string,
-  targetId?: string
-): Set<string> {
-  const set = new Set<string>();
-  for (const a of appointments) {
-    if (a.date !== date) continue;
-    if (a.status === "cancelled" || a.status === "rejected") continue;
-    if (targetId && (a.targetId || "reception") !== targetId) continue;
-    if (excludeId && a.id === excludeId) continue;
-    set.add(a.slotStart);
-  }
-  return set;
-}
-
-export function getAvailableSlotsForDate(
-  date: string,
-  settings: CalendarSettings,
-  appointments: Appointment[],
-  excludeAppointmentId?: string,
-  targetId?: string,
-  sc?: ServiceContent | null
-): TimeSlot[] {
-  if (!isReceptionDate(date, settings, targetId, sc)) return [];
-  const booked = getBookedSlotKeys(
-    appointments,
-    date,
-    excludeAppointmentId,
-    targetId
-  );
-  const today = format(new Date(), "yyyy-MM-dd");
-  const nowMinutes =
-    new Date().getHours() * 60 + new Date().getMinutes();
-  const win = targetId
-    ? resolveTargetWindow(targetId, settings, sc)
-    : {
-        startMinutes: settings.dayStartMinutes,
-        endMinutes: settings.dayEndMinutes,
-      };
-
-  return generateDaySlots(settings, {
-    startMinutes: win.startMinutes,
-    endMinutes: win.endMinutes,
-  }).filter((slot) => {
-    if (booked.has(slot.start)) return false;
-    if (date === today && timeToMinutes(slot.start) <= nowMinutes) return false;
-    return true;
-  });
 }
 
 /** Отображение даты: дд.мм.гггг (формат КР, не гггг-мм-дд) */
