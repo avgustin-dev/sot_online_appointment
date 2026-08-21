@@ -163,6 +163,12 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
     }
   }, [ready, currentUser, pathname, router]);
 
+  useEffect(() => {
+    if (ready && currentUser?.role === "intake") {
+      router.replace("/admin/intake");
+    }
+  }, [ready, currentUser, router]);
+
   if (!ready) {
     return (
       <div className="min-h-screen bg-[#f0f2f5]">

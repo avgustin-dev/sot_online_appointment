@@ -9,7 +9,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  if (pathname === "/admin/login") {
+  if (pathname === "/admin/login" || pathname.startsWith("/admin/intake")) {
     return <>{children}</>;
   }
   return <StaffShell>{children}</StaffShell>;

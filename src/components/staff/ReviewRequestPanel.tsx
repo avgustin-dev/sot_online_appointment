@@ -34,7 +34,7 @@ export function ReviewRequestPanel({
 
   if (appointment.status !== "pending_review") return null;
   if (!currentUser) return null;
-  if (!["admin", "reception", "leadership"].includes(currentUser.role)) {
+  if (!["admin", "reception", "leadership", "intake"].includes(currentUser.role)) {
     return (
       <p className="text-sm text-slate-500">
         {isKy

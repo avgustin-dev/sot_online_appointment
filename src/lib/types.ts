@@ -5,7 +5,8 @@ export type Role =
   | "reception" // отдел по работе с гражданами
   | "leadership" // руководство / Председатель
   | "responsible" // ответственный по обращению
-  | "admin";
+  | "admin"
+  | "intake"; // приёмный отдел: журнал заявок — принять/отклонить/перенести
 
 export type AppealStage =
   | "registered" // Этап 1: запись создана
