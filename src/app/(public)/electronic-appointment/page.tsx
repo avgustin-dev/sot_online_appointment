@@ -18,10 +18,7 @@ import { useStore } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
 import type { AppealCategory } from "@/lib/types";
-import {
-  APPLICANT_TYPES,
-  REGIONS_KR,
-} from "@/lib/constants";
+import { APPLICANT_TYPES } from "@/lib/constants";
 import {
   BOOKING_RULES,
   cloneEligibilityTree,
@@ -59,15 +56,8 @@ export default function BookPage() {
   const STEPS = useMemo(
     () =>
       isKy
-        ? ["Эрежелер", "Допуск", "Жеке маалымат", "Дарек", "Мазмун", "Убакыт"]
-        : [
-            "Правила",
-            "Допуск",
-            "Заявитель",
-            "Адрес",
-            "Обращение",
-            "Дата и время",
-          ],
+        ? ["Эрежелер", "Допуск", "Жеке маалымат", "Мазмун", "Убакыт"]
+        : ["Правила", "Допуск", "Заявитель", "Обращение", "Дата и время"],
     [isKy]
   );
 
@@ -79,27 +69,9 @@ export default function BookPage() {
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [phone, setPhone] = useState("");
-  const [phoneAlt, setPhoneAlt] = useState("");
   const [email, setEmail] = useState("");
   const [applicantType, setApplicantType] = useState("citizen");
   const [orgName, setOrgName] = useState("");
-  const [orgInn, setOrgInn] = useState("");
-  const [position, setPosition] = useState("");
-  const [docType, setDocType] = useState("passport");
-  const [docNumber, setDocNumber] = useState("");
-  const [citizenship, setCitizenship] = useState("kg");
-  const [gender, setGender] = useState("");
-  const [birthDate, setBirthDate] = useState("");
-
-  const [region, setRegion] = useState("");
-  const [district, setDistrict] = useState("");
-  const [city, setCity] = useState("");
-  const [street, setStreet] = useState("");
-  const [house, setHouse] = useState("");
-  const [apartment, setApartment] = useState("");
-  const [postalCode, setPostalCode] = useState("");
-  const [address, setAddress] = useState("");
-  const [residenceType, setResidenceType] = useState("registration");
 
   const [target, setTarget] = useState("reception");
   const [topic, setTopic] = useState("");
@@ -109,7 +81,6 @@ export default function BookPage() {
   const [companionPhone, setCompanionPhone] = useState("");
   const [companion2, setCompanion2] = useState("");
   const [companion2Phone, setCompanion2Phone] = useState("");
-  const [expectedResult, setExpectedResult] = useState("");
 
   const [date, setDate] = useState("");
   const [slotStart, setSlotStart] = useState("");
@@ -234,20 +205,6 @@ export default function BookPage() {
         );
     }
     if (s === 3) {
-      if (!region)
-        return L("Выберите регион (область / город).", "Аймакты тандаңыз.");
-      if (!city.trim())
-        return L(
-          "Укажите населённый пункт.",
-          "Калаа же айылды жазыңыз."
-        );
-      if (!street.trim() && !address.trim())
-        return L(
-          "Укажите улицу или полный адрес.",
-          "Көчөнү же толук даректи жазыңыз."
-        );
-    }
-    if (s === 4) {
       if (!target)
         return L(
           "Укажите должностное лицо, к которому записываетесь.",
@@ -269,7 +226,7 @@ export default function BookPage() {
           "Кайрылуунун предмети эрежелерге туура келерин ырастаңыз."
         );
     }
-    if (s === 5 && (!date || !slotStart)) {
+    if (s === 4 && (!date || !slotStart)) {
       return L(
         "Выберите дату и время приёма.",
         "Күн жана убакытты тандаңыз."
@@ -290,7 +247,7 @@ export default function BookPage() {
       const auto = isKy ? leaf.topicKy : leaf.topicRu;
       if (auto && !topic) setTopic(auto);
     }
-    setStep((x) => Math.min(5, x + 1));
+    setStep((x) => Math.min(4, x + 1));
   }
 
   function back() {
@@ -300,31 +257,16 @@ export default function BookPage() {
 
   async function onSubmit() {
     setError("");
-    const err = validateStep(5);
+    const err = validateStep(4);
     if (err) {
       setError(err);
       return;
     }
     const pathNote = pathNodes.map(labelOf).join(" → ");
-    const regionLabel =
-      REGIONS_KR.find((r) => r.id === region)?.[isKy ? "ky" : "ru"] || region;
     const typeLabel =
       APPLICANT_TYPES.find((r) => r.id === applicantType)?.[
         isKy ? "ky" : "ru"
       ] || applicantType;
-
-    const addrParts = [
-      regionLabel,
-      district.trim() && `р-н ${district.trim()}`,
-      city.trim(),
-      street.trim() && `ул. ${street.trim()}`,
-      house.trim() && `д. ${house.trim()}`,
-      apartment.trim() && `кв. ${apartment.trim()}`,
-      postalCode.trim() && `индекс ${postalCode.trim()}`,
-      address.trim(),
-    ]
-      .filter(Boolean)
-      .join(", ");
 
     const companions = [
       companion.trim()
@@ -336,10 +278,8 @@ export default function BookPage() {
     ].filter((c): c is { fullName: string; phone: string } => Boolean(c));
 
     const appendix = [
-      addrParts && `Адрес: ${addrParts}`,
       typeLabel && `Тип заявителя: ${typeLabel}`,
       orgName.trim() && `Организация: ${orgName.trim()}`,
-      expectedResult.trim() && `Ожидаемый результат: ${expectedResult.trim()}`,
       pathNote && `Допуск: ${pathNote}`,
     ]
       .filter(Boolean)
@@ -629,80 +569,6 @@ export default function BookPage() {
                   />
                 </div>
                 <div>
-                  <label className="label">{L("Пол", "Жынысы")}</label>
-                  <select
-                    className="input"
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                  >
-                    <option value="">
-                      {L("— Не указано —", "— Көрсөтүлгөн жок —")}
-                    </option>
-                    <option value="m">{L("Мужской", "Эркек")}</option>
-                    <option value="f">{L("Женский", "Аял")}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">
-                    {L("Дата рождения (дд.мм.гггг)", "Туулган күнү (кк.аа.жжжж)")}
-                  </label>
-                  <input
-                    className="input font-mono"
-                    value={birthDate}
-                    onChange={(e) => setBirthDate(e.target.value)}
-                    placeholder="15.03.1985"
-                    lang="ru"
-                  />
-                </div>
-                <div>
-                  <label className="label">
-                    {L("Гражданство", "Жарандык")}
-                  </label>
-                  <select
-                    className="input"
-                    value={citizenship}
-                    onChange={(e) => setCitizenship(e.target.value)}
-                  >
-                    <option value="kg">
-                      {L("Кыргызская Республика", "Кыргыз Республикасы")}
-                    </option>
-                    <option value="other">
-                      {L("Иное", "Башка")}
-                    </option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">
-                    {L("Документ, удостоверяющий личность", "Өздүк документ")}
-                  </label>
-                  <select
-                    className="input"
-                    value={docType}
-                    onChange={(e) => setDocType(e.target.value)}
-                  >
-                    <option value="passport">
-                      {L("Паспорт / ID-карта", "Паспорт / ID-карта")}
-                    </option>
-                    <option value="foreign">
-                      {L("Документ иностранного гражданина", "Чет өлкөлүк документ")}
-                    </option>
-                    <option value="other">
-                      {L("Иной документ", "Башка документ")}
-                    </option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">
-                    {L("Серия и номер документа", "Документтин сериясы жана номери")}
-                  </label>
-                  <input
-                    className="input font-mono"
-                    value={docNumber}
-                    onChange={(e) => setDocNumber(e.target.value)}
-                    placeholder="ID …"
-                  />
-                </div>
-                <div>
                   <label className="label">
                     {L("Контактный телефон", "Байланыш телефону")}{" "}
                     <span className="text-court-danger">*</span>
@@ -713,17 +579,6 @@ export default function BookPage() {
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="+996 XXX XXX XXX"
                     autoComplete="tel"
-                  />
-                </div>
-                <div>
-                  <label className="label">
-                    {L("Дополнительный телефон", "Кошумча телефон")}
-                  </label>
-                  <input
-                    className="input"
-                    value={phoneAlt}
-                    onChange={(e) => setPhoneAlt(e.target.value)}
-                    placeholder="+996 …"
                   />
                 </div>
                 <div>
@@ -756,191 +611,27 @@ export default function BookPage() {
                   </select>
                 </div>
                 {(applicantType === "legal" || applicantType === "rep") && (
-                  <>
-                    <div className="sm:col-span-2">
-                      <label className="label">
-                        {L(
-                          "Полное наименование организации",
-                          "Уюмдун толук аталышы"
-                        )}{" "}
-                        <span className="text-court-danger">*</span>
-                      </label>
-                      <input
-                        className="input"
-                        value={orgName}
-                        onChange={(e) => setOrgName(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">
-                        {L("ИНН / рег. номер", "ИНН / каттоо номери")}
-                      </label>
-                      <input
-                        className="input font-mono"
-                        value={orgInn}
-                        onChange={(e) => setOrgInn(e.target.value)}
-                      />
-                    </div>
-                    <div className="sm:col-span-3">
-                      <label className="label">
-                        {L("Должность представителя", "Өкүлдүн кызматы")}
-                      </label>
-                      <input
-                        className="input"
-                        value={position}
-                        onChange={(e) => setPosition(e.target.value)}
-                      />
-                    </div>
-                  </>
+                  <div className="sm:col-span-3">
+                    <label className="label">
+                      {L(
+                        "Полное наименование организации",
+                        "Уюмдун толук аталышы"
+                      )}{" "}
+                      <span className="text-court-danger">*</span>
+                    </label>
+                    <input
+                      className="input"
+                      value={orgName}
+                      onChange={(e) => setOrgName(e.target.value)}
+                    />
+                  </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* 3 Адрес */}
+          {/* 3 Содержание (без дела!) */}
           {step === 3 && (
-            <div className="space-y-4">
-              <h2 className="text-base font-semibold text-court-navy">
-                {L(
-                  "Место проживания / нахождения заявителя",
-                  "Кайрылуучунун жашаган / жайгашкан жери"
-                )}
-              </h2>
-              {fullName && (
-                <div className="rounded border border-court-line bg-court-mist px-3 py-2 text-sm">
-                  <span className="text-xs uppercase tracking-wide text-court-muted">
-                    {L("Заявитель", "Кайрылуучу")}:
-                  </span>{" "}
-                  <strong className="text-court-navy">{fullName}</strong>
-                  {phone && (
-                    <span className="text-court-muted"> · {phone}</span>
-                  )}
-                </div>
-              )}
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="label">
-                    {L("Тип адреса", "Дарек түрү")}
-                  </label>
-                  <select
-                    className="input"
-                    value={residenceType}
-                    onChange={(e) => setResidenceType(e.target.value)}
-                  >
-                    <option value="registration">
-                      {L("По месту регистрации", "Катталган жери боюнча")}
-                    </option>
-                    <option value="actual">
-                      {L("Фактическое проживание", "Иш жүзүндө жашаган жери")}
-                    </option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">
-                    {L("Регион (область / город)", "Аймак (облус / шаар)")}{" "}
-                    <span className="text-court-danger">*</span>
-                  </label>
-                  <select
-                    className="input"
-                    value={region}
-                    onChange={(e) => setRegion(e.target.value)}
-                  >
-                    <option value="">
-                      {L("— Выберите —", "— Тандаңыз —")}
-                    </option>
-                    {REGIONS_KR.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {isKy ? r.ky : r.ru}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">
-                    {L("Район", "Район")}
-                  </label>
-                  <input
-                    className="input"
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                    placeholder={L("район", "район")}
-                  />
-                </div>
-                <div>
-                  <label className="label">
-                    {L("Населённый пункт", "Калаа / айыл")}{" "}
-                    <span className="text-court-danger">*</span>
-                  </label>
-                  <input
-                    className="input"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    placeholder={L("город, село, посёлок", "шаар, айыл")}
-                  />
-                </div>
-                <div>
-                  <label className="label">
-                    {L("Улица / микрорайон", "Көчө / микрорайон")}{" "}
-                    <span className="text-court-danger">*</span>
-                  </label>
-                  <input
-                    className="input"
-                    value={street}
-                    onChange={(e) => setStreet(e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="label">{L("Дом", "Үй")}</label>
-                    <input
-                      className="input"
-                      value={house}
-                      onChange={(e) => setHouse(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">{L("Квартира", "Батир")}</label>
-                    <input
-                      className="input"
-                      value={apartment}
-                      onChange={(e) => setApartment(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="label">
-                    {L("Почтовый индекс", "Почта индекси")}
-                  </label>
-                  <input
-                    className="input font-mono"
-                    value={postalCode}
-                    onChange={(e) => setPostalCode(e.target.value)}
-                    placeholder="720000"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="label">
-                    {L(
-                      "Адрес дополнительно (ориентир, корпус и т.п.)",
-                      "Кошумча дарек (багыт, корпус ж.б.)"
-                    )}
-                  </label>
-                  <input
-                    className="input"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder={L(
-                      "при необходимости — полный адрес одной строкой",
-                      "керек болсо — толук дарек"
-                    )}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 4 Содержание (без дела!) */}
-          {step === 4 && (
             <div className="space-y-4">
               <h2 className="text-base font-semibold text-court-navy">
                 {L("Сведения об обращении", "Кайрылуу жөнүндө маалымат")}
@@ -953,11 +644,7 @@ export default function BookPage() {
                     </span>{" "}
                     <strong className="text-court-navy">{fullName}</strong>
                   </div>
-                  <div className="mt-0.5 text-xs text-court-muted">
-                    {phone}
-                    {city && ` · ${city}`}
-                    {street && ` · ${street}`}
-                  </div>
+                  <div className="mt-0.5 text-xs text-court-muted">{phone}</div>
                 </div>
               )}
               {pathNodes.length > 0 && (
@@ -1038,25 +725,6 @@ export default function BookPage() {
                   {description.length}/2000
                 </p>
               </div>
-              <div>
-                <label className="label">
-                  {L(
-                    "Ожидаемый результат рассмотрения",
-                    "Карап чыгуунун күтүлгөн натыйжасы"
-                  )}
-                </label>
-                <textarea
-                  className="input min-h-[64px] resize-y"
-                  value={expectedResult}
-                  onChange={(e) =>
-                    setExpectedResult(e.target.value.slice(0, 500))
-                  }
-                  placeholder={L(
-                    "Кратко: разъяснение, организационные меры, учёт предложения…",
-                    "Кыскача: түшүндүрмө, уюштуруу чаралары…"
-                  )}
-                />
-              </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="label">
@@ -1127,8 +795,8 @@ export default function BookPage() {
             </div>
           )}
 
-          {/* 5 Календарь */}
-          {step === 5 && (
+          {/* 4 Календарь */}
+          {step === 4 && (
             <div className="space-y-4">
               <h2 className="text-base font-semibold text-court-navy">
                 {t.book.calendarTitle}
@@ -1177,7 +845,7 @@ export default function BookPage() {
               <ArrowLeft className="h-4 w-4" />
               {L("Назад", "Артка")}
             </button>
-            {step === 1 && blocked ? null : step < 5 ? (
+            {step === 1 && blocked ? null : step < 4 ? (
               <button
                 type="button"
                 className="btn-primary"
