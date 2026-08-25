@@ -55,6 +55,7 @@ export default function MyAppointmentPage() {
         ? new URLSearchParams(window.location.search).get("code")
         : null;
     if (fromUrl) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- код записи читаем из URL/localStorage только на клиенте
       setCode(fromUrl.trim().toUpperCase());
     }
     try {
@@ -155,6 +156,7 @@ export default function MyAppointmentPage() {
   const canManage =
     apt &&
     apt.status !== "cancelled" &&
+    apt.status !== "accepted" &&
     apt.status !== "completed" &&
     apt.status !== "rejected";
   const canReschedule =
@@ -387,7 +389,7 @@ export default function MyAppointmentPage() {
                 {isKy ? "Уведомления" : "Уведомления по заявке"}
               </div>
               <ul className="mt-2 space-y-2">
-                {appeal.notifications.map((n) => (
+                {[...appeal.notifications].reverse().map((n) => (
                   <li key={n.id} className="text-sm text-court-ink">
                     <div className="font-semibold">{n.title}</div>
                     <p className="mt-0.5 text-xs text-court-muted">{n.body}</p>

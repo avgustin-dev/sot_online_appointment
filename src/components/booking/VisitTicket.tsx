@@ -167,7 +167,7 @@ export function VisitTicket({
       )}
       <div className="border-t border-court-line bg-court-mist px-4 py-3 text-xs leading-relaxed text-slate-700">
         <p className="font-semibold text-court-navy">
-          {isKy ? "Кабыл алууга эскертме" : "Памятка к визиту"}
+          {isKy ? "Кабыл алуу тартиби" : "Порядок визита"}
         </p>
         <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
           <li>

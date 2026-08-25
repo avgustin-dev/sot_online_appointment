@@ -13,6 +13,7 @@ import { Modal } from "@/components/ui/Modal";
 import { FileText } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { targetShort } from "@/lib/targets";
+import { assignmentStatusLabel } from "@/lib/assignment";
 
 export default function AppealsListPage() {
   const { state, currentUser, assignAppeal } = useStore();
@@ -232,6 +233,9 @@ export default function AppealsListPage() {
                         {a.assignment ? (
                           <span className="text-xs text-court-muted">
                             {a.assignment.responsibleName}
+                            {a.assignment.status
+                              ? ` · ${assignmentStatusLabel(a.assignment.status, isKy)}`
+                              : ""}
                           </span>
                         ) : (
                           <button

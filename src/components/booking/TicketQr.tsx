@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { ticketQrValue } from "@/lib/ticketUrl";
 
@@ -15,11 +14,7 @@ export function TicketQr({
   code: string;
   isKy?: boolean;
 }) {
-  const [value, setValue] = useState(ticketQrValue(code));
-
-  useEffect(() => {
-    setValue(ticketQrValue(code));
-  }, [code]);
+  const value = ticketQrValue(code);
 
   return (
     <div className="mx-auto text-center">
@@ -38,8 +33,8 @@ export function TicketQr({
       </div>
       <p className="mt-1 max-w-[140px] text-[10px] leading-snug text-slate-500">
         {isKy
-          ? "Скан: статус жазылуу. PIN талондо, QR'да жок."
-          : "Скан: страница статуса. PIN на талоне, в QR его нет."}
+          ? "Скан: статус жазылуу. PIN талондо, Qr'да жок."
+          : "Скан: страница статуса. QR странице, PIN отсутствует."}
       </p>
     </div>
   );

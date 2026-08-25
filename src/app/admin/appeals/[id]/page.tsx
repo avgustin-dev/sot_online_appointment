@@ -24,6 +24,7 @@ import { useI18n } from "@/lib/i18n";
 import { ReviewRequestPanel } from "@/components/staff/ReviewRequestPanel";
 import { targetPerson, targetShort } from "@/lib/targets";
 import { SlotPicker } from "@/components/booking/SlotPicker";
+import { assignmentStatusLabel } from "@/lib/assignment";
 
 export default function AppealDetailPage() {
   const params = useParams();
@@ -40,6 +41,7 @@ export default function AppealDetailPage() {
     staffRescheduleAppointment,
     staffUpdateCitizenData,
     staffSetAppealStage,
+    assignAppeal,
   } = useStore();
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
@@ -73,9 +75,12 @@ export default function AppealDetailPage() {
   const [newSlotEnd, setNewSlotEnd] = useState("");
   const [stageSelect, setStageSelect] = useState<AppealStage>("registered");
   const [statusSelect, setStatusSelect] = useState<AppointmentStatus>("confirmed");
+  const [assignId, setAssignId] = useState("");
+  const [assignText, setAssignText] = useState("");
 
   useEffect(() => {
     if (!appeal) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- подгрузка формы при смене карточки/её обновлении
     setSummary(appeal.summary || "");
     setPrepNotes(appeal.prepNotes || "");
     setCategory(appeal.category);
@@ -86,10 +91,13 @@ export default function AppealDetailPage() {
     setTopic(appeal.topic);
     setDescription(appeal.summary || "");
     setStageSelect(appeal.stage);
+    setAssignId(appeal.assignment?.responsibleUserId || "");
+    setAssignText(appeal.assignment?.text || "");
   }, [appeal?.id, appeal?.updatedAt]);
 
   useEffect(() => {
     if (!appointment) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- подгрузка формы при смене записи/её обновлении
     setNewDate(appointment.date);
     setNewSlotStart(appointment.slotStart);
     setNewSlotEnd(appointment.slotEnd);
@@ -111,6 +119,9 @@ export default function AppealDetailPage() {
   const canManage =
     !!currentUser &&
     ["reception", "admin", "leadership"].includes(currentUser.role);
+  const canAssign =
+    !!currentUser &&
+    (currentUser.role === "leadership" || currentUser.role === "admin");
   const canPrep =
     canManage &&
     ["registered", "under_review"].includes(appeal.stage) &&
@@ -325,7 +336,79 @@ export default function AppealDetailPage() {
                       .join("; ")}
               </div>
             </div>
+            <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 sm:col-span-2">
+              <div className="text-[11px] text-slate-500">
+                Кому поручено рассмотрение обращения
+              </div>
+              <div className="mt-0.5 font-medium text-slate-900">
+                {appeal.assignment?.responsibleName || "Не назначено"}
+                {appeal.assignment?.status
+                  ? ` · ${assignmentStatusLabel(appeal.assignment.status)}`
+                  : ""}
+              </div>
+              {appeal.assignment?.text && (
+                <p className="mt-1 text-sm text-slate-700">
+                  {appeal.assignment.text}
+                </p>
+              )}
+              {canAssign && (
+                <form
+                  className="mt-3 space-y-2 border-t border-slate-100 pt-3"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!assignId) return;
+                    const resp = state.staff.find((s) => s.id === assignId);
+                    if (!resp) return;
+                    const res = await assignAppeal(
+                      appeal.id,
+                      resp.id,
+                      resp.fullName,
+                      assignText.trim() || appeal.assignment?.text || "Поручение"
+                    );
+                    flash(
+                      Boolean(res?.ok),
+                      res?.ok ? "Исполнитель назначен." : res?.error || "Ошибка"
+                    );
+                  }}
+                >
+                  <div className="text-[11px] font-semibold uppercase text-slate-400">
+                    Назначить исполнителя
+                  </div>
+                  <select
+                    className="input w-full"
+                    value={assignId}
+                    onChange={(e) => setAssignId(e.target.value)}
+                    required
+                  >
+                    <option value="">Выберите ФИО сотрудника</option>
+                    {state.staff
+                      .filter((s) => s.role === "responsible")
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.fullName} — {s.position}
+                        </option>
+                      ))}
+                  </select>
+                  <textarea
+                    className="input min-h-[64px] w-full"
+                    value={assignText}
+                    onChange={(e) => setAssignText(e.target.value)}
+                    placeholder="Содержание поручения"
+                  />
+                  <button type="submit" className="btn-primary !text-sm">
+                    Назначить
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
+          {appointment.previousDate && (
+            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+              Прежние дата и время приёма сохраняются при переносе:{" "}
+              {formatDateRu(appointment.previousDate)}{" "}
+              {appointment.previousSlotStart}–{appointment.previousSlotEnd}.
+            </p>
+          )}
         </section>
       )}
 
@@ -363,6 +446,7 @@ export default function AppealDetailPage() {
           </h2>
           <div className="flex flex-wrap gap-2">
             {appointment.status !== "cancelled" &&
+              appointment.status !== "accepted" &&
               appointment.status !== "completed" && (
                 <>
                   <button
@@ -744,14 +828,18 @@ export default function AppealDetailPage() {
           {appeal.receptionProtocol && (
             <Collapsible title="Протокол приёма" defaultOpen={false}>
               <dl className="space-y-3 text-sm">
-                <div>
-                  <dt className="text-xs text-slate-500">Заявление</dt>
-                  <dd>{appeal.receptionProtocol.citizenStatement}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-slate-500">Разъяснение</dt>
-                  <dd>{appeal.receptionProtocol.leadershipExplanation}</dd>
-                </div>
+                {appeal.receptionProtocol.citizenStatement?.trim() ? (
+                  <div>
+                    <dt className="text-xs text-slate-500">Заявление</dt>
+                    <dd>{appeal.receptionProtocol.citizenStatement}</dd>
+                  </div>
+                ) : null}
+                {appeal.receptionProtocol.leadershipExplanation?.trim() ? (
+                  <div>
+                    <dt className="text-xs text-slate-500">Разъяснение</dt>
+                    <dd>{appeal.receptionProtocol.leadershipExplanation}</dd>
+                  </div>
+                ) : null}
                 <div>
                   <dt className="text-xs text-slate-500">Поручение</dt>
                   <dd>{appeal.receptionProtocol.assignmentText}</dd>
@@ -763,7 +851,9 @@ export default function AppealDetailPage() {
                 {appeal.assignment && (
                   <div>
                     <dt className="text-xs text-slate-500">Статус поручения</dt>
-                    <dd className="font-medium">{appeal.assignment.status}</dd>
+                    <dd className="font-medium">
+                      {assignmentStatusLabel(appeal.assignment.status)}
+                    </dd>
                   </div>
                 )}
               </dl>
@@ -818,7 +908,7 @@ export default function AppealDetailPage() {
           >
             {appeal.controlLog.length > 0 && (
               <ul className="mb-4 max-h-40 space-y-2 overflow-y-auto text-xs">
-                {appeal.controlLog.map((c) => (
+                {[...appeal.controlLog].reverse().map((c) => (
                   <li key={c.id} className="rounded-lg bg-slate-50 px-3 py-2">
                     <div className="font-semibold">{c.action}</div>
                     <div className="text-slate-500">{c.comment}</div>
@@ -831,7 +921,7 @@ export default function AppealDetailPage() {
               </ul>
             )}
             <ul className="max-h-48 space-y-2 overflow-y-auto">
-              {appeal.notifications.map((n) => (
+              {[...appeal.notifications].reverse().map((n) => (
                 <li
                   key={n.id}
                   className="rounded-lg border border-slate-100 px-3 py-2 text-xs"

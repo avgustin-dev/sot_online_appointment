@@ -20,6 +20,8 @@ export type AppealStage =
 export type AppointmentStatus =
   | "pending_review"
   | "confirmed"
+  /** Гражданин принят на личном приёме (см. п.5 ТЗ — статус «Принята»). */
+  | "accepted"
   | "rescheduled"
   | "cancelled"
   | "rejected"
@@ -96,6 +98,10 @@ export interface Appointment {
   targetId: string;
   companions: Companion[];
   reviewNote?: string;
+  /** Прежние дата и время — сохраняются при переносе. */
+  previousDate?: string;
+  previousSlotStart?: string;
+  previousSlotEnd?: string;
   createdAt: string;
   updatedAt: string;
   history: AppointmentHistoryItem[];
@@ -151,12 +157,19 @@ export interface ReceptionProtocol {
   notes?: string;
 }
 
+export type AssignmentStatus =
+  | "not_assigned"
+  | "assigned"
+  | "in_progress"
+  | "done"
+  | "needs_rework";
+
 export interface Assignment {
   text: string;
   responsibleUserId: string;
   responsibleName: string;
   dueDate: string;
-  status: "not_assigned" | "assigned" | "in_progress" | "done" | "needs_rework";
+  status: AssignmentStatus;
   createdAt: string;
 }
 
@@ -392,6 +405,17 @@ export type EligibilityTreeNode = {
   };
 };
 
+export interface ActionLogEntry {
+  id: string;
+  at: string;
+  userId: string;
+  userName: string;
+  action: string;
+  entity: "appointment" | "schedule" | "assignment" | "content";
+  entityId?: string;
+  detail?: string;
+}
+
 export interface PlatformState {
   version: number;
   calendar: CalendarSettings;
@@ -406,4 +430,6 @@ export interface PlatformState {
   adminModule: AdminModule;
   /** Дерево шага «Допуск» — редактируется в CMS */
   eligibilityTree: EligibilityTreeNode[];
+  /** Журнал действий (локальный контур без бэкенда) */
+  actionLog?: ActionLogEntry[];
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -18,15 +18,11 @@ import { Modal } from "@/components/ui/Modal";
 import { useI18n } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
-
-const ACTION_PRESETS = [
-  { ru: "Ход исполнения", ky: "Аткаруунун жүрүшү" },
-  { ru: "Запрос документов", ky: "Документтерди суроо" },
-  { ru: "Согласование", ky: "Макулдашуу" },
-  { ru: "Напоминание ответственному", ky: "Жооптууга эскертүү" },
-  { ru: "Частичное исполнение", ky: "Жарым-жартылай аткаруу" },
-  { ru: "Готово к ответу", ky: "Жоопко даяр" },
-];
+import {
+  ASSIGNMENT_STATUSES,
+  assignmentStatusLabel,
+} from "@/lib/assignment";
+import type { AssignmentStatus } from "@/lib/types";
 
 export default function ControlPage() {
   const {
@@ -35,19 +31,27 @@ export default function ControlPage() {
     addControlLog,
     setAssignmentStatus,
     submitFinalAnswer,
+    assignAppeal,
   } = useStore();
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
   const L = (ru: string, ky: string) => (isKy ? ky : ru);
   const [selectedId, setSelectedId] = useState("");
   const [filter, setFilter] = useState<"all" | "open" | "overdue" | "done">("all");
-  const [action, setAction] = useState(ACTION_PRESETS[0].ru);
+  const [statusPick, setStatusPick] = useState<AssignmentStatus>("assigned");
   const [comment, setComment] = useState("");
   const [answer, setAnswer] = useState("");
+  const [assignTo, setAssignTo] = useState("");
+  const [assignText, setAssignText] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState(false);
 
-  const readOnly = currentUser?.role === "leadership" || currentUser?.role === "admin";
+  const canAssign =
+    currentUser?.role === "leadership" || currentUser?.role === "admin";
+  const canChangeStatus =
+    currentUser?.role === "responsible" || currentUser?.role === "admin";
+  const canAnswer =
+    currentUser?.role === "responsible" || currentUser?.role === "admin";
   const today = new Date().toISOString().slice(0, 10);
 
   const items = useMemo(() => {
@@ -86,6 +90,14 @@ export default function ControlPage() {
 
   const selected = items.find((a) => a.id === selectedId);
 
+  useEffect(() => {
+    const st = selected?.assignment?.status;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- подгрузка формы при выборе/обновлении поручения
+    if (st && st !== "not_assigned") setStatusPick(st);
+    setAssignTo(selected?.assignment?.responsibleUserId || "");
+    setAssignText(selected?.assignment?.text || "");
+  }, [selected?.id, selected?.assignment?.status, selected?.assignment?.responsibleUserId, selected?.assignment?.text]);
+
   const counts = useMemo(() => {
     let base = state.appeals.filter((a) =>
       ["in_control", "answered", "reception_done", "closed"].includes(a.stage)
@@ -116,19 +128,50 @@ export default function ControlPage() {
     setComment("");
   }
 
-  async function onLog(e: React.FormEvent) {
+  async function onStatus(e: React.FormEvent) {
     e.preventDefault();
     if (!currentUser || !selected) return;
-    const rec = await addControlLog(selected.id, currentUser, action, comment);
+    const rec = await setAssignmentStatus(selected.id, statusPick);
     if (rec && "ok" in rec && !rec.ok) {
       setErr(true);
       setMsg(rec.error);
       return;
     }
-    await setAssignmentStatus(selected.id, "in_progress");
-    setComment("");
+    if (comment.trim()) {
+      await addControlLog(
+        selected.id,
+        currentUser,
+        assignmentStatusLabel(statusPick, isKy),
+        comment.trim()
+      );
+      setComment("");
+    }
     setErr(false);
-    setMsg(L("Запись в журнале добавлена.", "Журналга жазуу кошулду."));
+    setMsg(
+      L(
+        `Статус поручения: ${assignmentStatusLabel(statusPick)}`,
+        `Статус: ${assignmentStatusLabel(statusPick, true)}`
+      )
+    );
+  }
+
+  async function onAssign(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selected) return;
+    const resp = state.staff.find((s) => s.id === assignTo);
+    if (!resp || !assignText.trim()) {
+      setErr(true);
+      setMsg(L("Укажите исполнителя (ФИО) и текст поручения.", "Аткаруучуну жана текстти көрсөтүңүз."));
+      return;
+    }
+    const rec = await assignAppeal(selected.id, resp.id, resp.fullName, assignText.trim());
+    if (rec && "ok" in rec && !rec.ok) {
+      setErr(true);
+      setMsg(rec.error);
+      return;
+    }
+    setErr(false);
+    setMsg(L("Исполнитель назначен.", "Аткаруучу дайындалды."));
   }
 
   async function onAnswer(e: React.FormEvent) {
@@ -167,11 +210,10 @@ export default function ControlPage() {
       />
       <AdminHeading
         title={isKy ? "Тапшырмалар" : "Поручения"}
-        lead={
-          readOnly
-            ? L("Список поручений, исполнитель и статус.", "Тапшырмалардын тизмеси.")
-            : L("Журнал исполнения, срок, протокол.", "Аткаруу журналы, мөөнөт, протокол.")
-        }
+        lead={L(
+          "Список поручений с ФИО исполнителя и статусом. Назначает председатель, статус меняет исполнитель.",
+          "Тизме: ФИО аткаруучу жана статус. Председатель дайындайт, аткаруучу статусту өзгөртөт."
+        )}
       />
 
       <div className="grid gap-2 sm:grid-cols-4">
@@ -248,7 +290,8 @@ export default function ControlPage() {
                     <div className="text-xs text-slate-500">
                       {a.assignment?.responsibleName || "—"} · {L("срок", "мөөнөт")}{" "}
                       {a.assignment?.dueDate || "—"}
-                      {a.assignment?.status && ` · ${a.assignment.status}`}
+                      {a.assignment?.status &&
+                        ` · ${assignmentStatusLabel(a.assignment.status, isKy)}`}
                     </div>
                   </button>
                 </li>
@@ -292,67 +335,102 @@ export default function ControlPage() {
               </div>
             )}
 
-            {readOnly ? (
-              <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                {L("Исполнитель", "Аткаруучу")}: {selected.assignment?.responsibleName || "—"} ·{" "}
-                {L("статус", "статус")}: {selected.assignment?.status || "—"}
-              </div>
-            ) : (
-              <>
-                <form onSubmit={onLog} className="space-y-3">
-                  <label className="block space-y-1">
-                    <span className="text-xs font-semibold text-slate-600">
-                      {L("Действие", "Аракет")}
-                    </span>
-                    <select className="input w-full" value={action} onChange={(e) => setAction(e.target.value)}>
-                      {ACTION_PRESETS.map((p) => (
-                        <option key={p.ru} value={p.ru}>
-                          {isKy ? p.ky : p.ru}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block space-y-1">
-                    <span className="text-xs font-semibold text-slate-600">
-                      {L("Комментарий / результат", "Комментарий")}
-                    </span>
-                    <textarea
-                      className="input min-h-[70px] w-full"
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      required
-                    />
-                  </label>
-                  <button type="submit" className="btn-outline !text-sm">
-                    {L("Добавить в журнал", "Журналга кошуу")}
-                  </button>
-                </form>
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {L("Исполнитель", "Аткаруучу")}: {selected.assignment?.responsibleName || "—"} ·{" "}
+              {L("статус", "статус")}:{" "}
+              {assignmentStatusLabel(selected.assignment?.status, isKy)}
+            </div>
 
-                {selected.stage !== "closed" && (
-                  <form onSubmit={onAnswer} className="space-y-3 border-t border-slate-100 pt-4">
-                    <label className="block space-y-1">
-                      <span className="text-xs font-semibold text-slate-600">
-                        {L("Протокол исполнения", "Аткаруу протоколу")}
-                      </span>
-                      <textarea
-                        className="input min-h-[100px] w-full"
-                        value={answer}
-                        onChange={(e) => setAnswer(e.target.value)}
-                        placeholder={L("Текст протокола / обоснованного ответа…", "Протоколдун тексти…")}
-                        required
-                      />
-                    </label>
-                    <button type="submit" className="btn-primary !text-sm">
-                      {L("Сохранить протокол и завершить", "Протоколду сактап, аяктоо")}
-                    </button>
-                  </form>
-                )}
-              </>
+            {canAssign && (
+              <form onSubmit={onAssign} className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+                <div className="text-xs font-semibold text-slate-600">
+                  {L("Назначить исполнителя (ФИО)", "Аткаруучуну дайындоо")}
+                </div>
+                <select
+                  className="input w-full"
+                  value={assignTo}
+                  onChange={(e) => setAssignTo(e.target.value)}
+                  required
+                >
+                  <option value="">{L("Выберите сотрудника", "Кызматкерди тандаңыз")}</option>
+                  {state.staff
+                    .filter((s) => s.role === "responsible")
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.fullName} — {s.position}
+                      </option>
+                    ))}
+                </select>
+                <textarea
+                  className="input min-h-[64px] w-full"
+                  value={assignText}
+                  onChange={(e) => setAssignText(e.target.value)}
+                  placeholder={L("Содержание поручения", "Тапшырманын тексти")}
+                  required
+                />
+                <button type="submit" className="btn-primary !text-sm">
+                  {L("Назначить", "Дайындоо")}
+                </button>
+              </form>
+            )}
+
+            {canChangeStatus && (
+              <form onSubmit={onStatus} className="space-y-3">
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold text-slate-600">
+                    {L("Статус поручения", "Тапшырманын статусу")}
+                  </span>
+                  <select
+                    className="input w-full"
+                    value={statusPick}
+                    onChange={(e) => setStatusPick(e.target.value as AssignmentStatus)}
+                  >
+                    {ASSIGNMENT_STATUSES.filter((s) => s.key !== "not_assigned").map((st) => (
+                      <option key={st.key} value={st.key}>
+                        {isKy ? st.ky : st.ru}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold text-slate-600">
+                    {L("Комментарий (необязательно)", "Комментарий (милдеттүү эмес)")}
+                  </span>
+                  <textarea
+                    className="input min-h-[70px] w-full"
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                  />
+                </label>
+                <button type="submit" className="btn-outline !text-sm">
+                  {L("Сохранить статус", "Статусту сактоо")}
+                </button>
+              </form>
+            )}
+
+            {canAnswer && selected.stage !== "closed" && (
+              <form onSubmit={onAnswer} className="space-y-3 border-t border-slate-100 pt-4">
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold text-slate-600">
+                    {L("Протокол исполнения", "Аткаруу протоколу")}
+                  </span>
+                  <textarea
+                    className="input min-h-[100px] w-full"
+                    value={answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    placeholder={L("Текст протокола / обоснованного ответа…", "Протоколдун тексти…")}
+                    required
+                  />
+                </label>
+                <button type="submit" className="btn-primary !text-sm">
+                  {L("Сохранить протокол и завершить", "Протоколду сактап, аяктоо")}
+                </button>
+              </form>
             )}
 
             {selected.controlLog.length > 0 && (
               <ul className="max-h-36 space-y-2 overflow-y-auto border-t border-slate-100 pt-3 text-xs">
-                {selected.controlLog.map((c) => (
+                {[...selected.controlLog].reverse().map((c) => (
                   <li key={c.id} className="rounded-lg bg-slate-50 px-3 py-2">
                     <strong>{c.action}</strong> {c.comment && `— ${c.comment}`}
                     <div className="text-slate-400">

@@ -1,15 +1,12 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypescript from "eslint-config-next/typescript";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-/** @type {import('eslint').Linter.Config[]} */
-const eslintConfig = [...compat.extends("next/core-web-vitals")];
+/**
+ * eslint-config-next 16+ поставляет готовый flat config — оборачивать его в
+ * FlatCompat (@eslint/eslintrc) больше нельзя: react-hooks-плагин там сам на
+ * себя ссылается, и eslintrc падает при попытке сериализовать ошибку в JSON
+ * ("Converting circular structure to JSON"). Подключаем flat-конфиги напрямую.
+ */
+const eslintConfig = [...nextCoreWebVitals, ...nextTypescript];
 
 export default eslintConfig;

@@ -59,6 +59,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const saved = readStoredLang();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- язык читаем из localStorage/cookie только на клиенте
     setLangState(saved);
     persistLang(saved);
     setReady(true);

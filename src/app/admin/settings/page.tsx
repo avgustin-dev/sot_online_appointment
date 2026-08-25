@@ -44,7 +44,13 @@ export default function SettingsPage() {
   const [rules, setRules] = useState(cal.rulesText);
   const [msg, setMsg] = useState("");
 
+  // Подтягиваем график из стора только один раз при заходе на страницу —
+  // иначе любое несвязанное обновление стора (например, в другой вкладке)
+  // затирало бы то, что оператор уже успел напечатать в форме.
+  const [loadedOnce, setLoadedOnce] = useState(false);
   useEffect(() => {
+    if (loadedOnce) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- разовая подгрузка формы после гидратации стора
     setWeekdays(cal.receptionWeekdays);
     setStart(minutesToTime(cal.dayStartMinutes));
     setEnd(minutesToTime(cal.dayEndMinutes));
@@ -54,7 +60,8 @@ export default function SettingsPage() {
     setClosed(formatDateList(cal.closedDates));
     setExtra(formatDateList(cal.extraOpenDates));
     setRules(cal.rulesText);
-  }, [cal]);
+    setLoadedOnce(true);
+  }, [cal, loadedOnce]);
 
   const canEdit =
     currentUser &&

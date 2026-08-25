@@ -21,6 +21,7 @@ import {
   Inbox,
   FileCheck2,
   CalendarClock,
+  ScrollText,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { useStore } from "@/lib/store";
@@ -29,7 +30,6 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import { LangSwitch } from "@/components/ui/LangSwitch";
 import { useI18n } from "@/lib/i18n";
 import { EmblemKR } from "@/components/brand/Emblem";
-import { isChairProfile } from "@/lib/staff";
 
 type NavItem = {
   href: string;
@@ -64,17 +64,24 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
   const role = currentUser?.role;
 
   const canInbox = role === "admin" || role === "reception";
-  const canReception = role === "admin" || role === "leadership";
-  const canJournal = role === "admin" || role === "leadership";
+  const canReception =
+    role === "admin" ||
+    role === "leadership" ||
+    (role === "responsible" && !!currentUser?.targetId);
+  const canJournal =
+    role === "admin" || role === "reception" || role === "leadership";
   const canControl =
     role === "admin" || role === "leadership" || role === "responsible";
   const canProtocols = role === "admin" || role === "leadership";
   const canMySchedule =
     (role === "admin" || role === "leadership" || role === "responsible") &&
     !!currentUser?.targetId;
-  const canAnalytics = role === "admin" || role === "leadership";
-  const canSettings = role === "admin";
-  const canSurvey = canSettings;
+  const canAnalytics = role === "admin";
+  const canContent = role === "admin" || role === "reception";
+  const canSchedules = role === "admin" || role === "reception";
+  const canEligibility = role === "admin";
+  const canSurvey = role === "admin";
+  const canViewJournal = role === "admin" || role === "reception";
 
   const workNav: NavItem[] = useMemo(() => {
     const items: NavItem[] = [
@@ -142,24 +149,33 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
         icon: BarChart3,
       });
     }
-    if (canSettings) {
-      items.push(
-        {
-          href: "/admin/content",
-          label: isKy ? "Сайт" : "Сайт",
-          icon: FilePenLine,
-        },
-        {
-          href: "/admin/eligibility",
-          label: isKy ? "Допуск" : "Допуск",
-          icon: GitBranch,
-        },
-        {
-          href: "/admin/settings",
-          label: isKy ? "График" : "График",
-          icon: Settings,
-        }
-      );
+    if (canContent) {
+      items.push({
+        href: "/admin/content",
+        label: isKy ? "Сайт" : "Сайт",
+        icon: FilePenLine,
+      });
+    }
+    if (canEligibility) {
+      items.push({
+        href: "/admin/eligibility",
+        label: isKy ? "Допуск" : "Допуск",
+        icon: GitBranch,
+      });
+    }
+    if (canSchedules) {
+      items.push({
+        href: "/admin/settings",
+        label: isKy ? "График" : "График",
+        icon: Settings,
+      });
+    }
+    if (canViewJournal) {
+      items.push({
+        href: "/admin/journal",
+        label: isKy ? "Аракеттер журналы" : "Журнал действий",
+        icon: ScrollText,
+      });
     }
     items.push({
       href: "/admin/help",
@@ -167,7 +183,15 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
       icon: BookOpen,
     });
     return items;
-  }, [isKy, canMySchedule, canAnalytics, canSettings]);
+  }, [
+    isKy,
+    canMySchedule,
+    canAnalytics,
+    canContent,
+    canEligibility,
+    canSchedules,
+    canViewJournal,
+  ]);
 
   const surveyNav: NavItem[] = useMemo(
     () => [
@@ -216,18 +240,11 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const chair = isChairProfile(currentUser);
   const roleLabel: Record<string, string> = {
     admin: isKy ? "Администратор" : "Администратор",
-    reception: isKy ? "Кабыл алуу бөлүмү" : "Отдел приёма граждан",
-    leadership: chair
-      ? isKy
-        ? "Төрага"
-        : "Председатель"
-      : isKy
-        ? "Жетекчилик"
-        : "Руководство",
-    responsible: isKy ? "Аткаруучу" : "Ответственный исполнитель",
+    reception: isKy ? "Маалымдама" : "Справочная",
+    leadership: isKy ? "Төрага" : "Председатель",
+    responsible: isKy ? "Аткаруучу" : "Исполнитель",
   };
 
   function isActive(item: NavItem) {

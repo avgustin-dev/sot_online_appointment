@@ -21,12 +21,17 @@ import { formatDateRu, minutesToTime, weekdayRu } from "@/lib/slots";
 import { cn } from "@/lib/utils";
 import { resolveTargetWindow, targetShort } from "@/lib/targets";
 import { backend } from "@/api/client";
+import { useRemoteApi } from "@/config/env";
+import { listLocalDates, listLocalSlots } from "@/lib/storeLocal";
 import type { TimeSlot } from "@/lib/types";
 
 /**
  * Строгий календарь записи (гос.стиль, удобный):
- * слева — месяц, справа — слоты. Доступные дни и слоты — всегда с бэкенда
- * (GET /public/dates, GET /public/slots); фронт их только отрисовывает.
+ * слева — месяц, справа — слоты.
+ * Если задан NEXT_PUBLIC_API_URL — доступные дни и слоты берутся с бэкенда
+ * (GET /public/dates, GET /public/slots). Если бэкенда нет (локальный контур
+ * на Zustand), они считаются на фронте по графику из /admin/settings и
+ * /admin/my-schedule — см. src/lib/storeLocal.ts.
  */
 export function SlotPicker({
   date,
@@ -54,7 +59,9 @@ export function SlotPicker({
   const [slotsLoading, setSlotsLoading] = useState(false);
 
   useEffect(() => {
+    if (!useRemoteApi) return;
     if (!ready) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- сброс перед перезапросом с бэкенда
       setRemoteDates(null);
       return;
     }
@@ -73,7 +80,9 @@ export function SlotPicker({
   }, [ready, target]);
 
   useEffect(() => {
+    if (!useRemoteApi) return;
     if (!ready || !date) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- сброс перед перезапросом с бэкенда
       setRemoteSlots(null);
       setSlotsLoading(false);
       return;
@@ -96,9 +105,25 @@ export function SlotPicker({
     };
   }, [ready, date, target, excludeAppointmentId]);
 
+  // Локальный контур (без API): график считаем сразу из состояния (Zustand),
+  // которое правит админка (/admin/settings, /admin/my-schedule).
+  const localDates = useMemo(
+    () => (ready && !useRemoteApi ? listLocalDates(state, target) : []),
+    [ready, state, target]
+  );
+  const localSlots = useMemo(
+    () =>
+      ready && !useRemoteApi && date
+        ? listLocalSlots(state, date, target, excludeAppointmentId)
+        : [],
+    [ready, state, date, target, excludeAppointmentId]
+  );
+
+  const availableDates = useRemoteApi ? remoteDates : localDates;
+
   const availableSet = useMemo(
-    () => new Set(remoteDates ?? []),
-    [remoteDates]
+    () => new Set(availableDates ?? []),
+    [availableDates]
   );
 
   const initialMonth = date
@@ -106,7 +131,8 @@ export function SlotPicker({
     : startOfMonth(new Date());
   const [month, setMonth] = useState(initialMonth);
 
-  const slots = remoteSlots ?? [];
+  const slots = useRemoteApi ? remoteSlots ?? [] : localSlots;
+  const isSlotsLoading = useRemoteApi && slotsLoading;
 
   const gridDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
@@ -122,7 +148,7 @@ export function SlotPicker({
   const today = startOfDay(new Date());
   const monthLabel = `${c.months[month.getMonth()]} ${month.getFullYear()}`;
   const selectedSlot = slots.find((s) => s.start === slotStart);
-  const datesReady = remoteDates !== null;
+  const datesReady = useRemoteApi ? remoteDates !== null : ready;
 
   function dayStatus(d: Date): "open" | "closed" | "past" | "selected" {
     const key = format(d, "yyyy-MM-dd");
@@ -243,7 +269,7 @@ export function SlotPicker({
               <p className="border border-dashed border-court-line bg-court-mist px-4 py-8 text-center text-sm text-court-muted">
                 {c.pickDateFirst}
               </p>
-            ) : slotsLoading ? (
+            ) : isSlotsLoading ? (
               <p className="border border-dashed border-court-line bg-court-mist px-4 py-8 text-center text-sm text-court-muted">
                 {isKy ? "Убакыт жүктөлүүдө…" : "Загрузка времени…"}
               </p>

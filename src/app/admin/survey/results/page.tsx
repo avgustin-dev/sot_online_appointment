@@ -47,7 +47,7 @@ export default function SurveyResultsPage() {
         return {
           question: q,
           kind: "text" as const,
-          texts: texts.slice(0, 12),
+          texts: texts.slice(-12).reverse(),
           total: texts.length,
         };
       }

@@ -85,22 +85,24 @@ export function DonutChart({
   const stroke = size * 0.14;
   const radius = r - stroke;
   const c = 2 * Math.PI * radius;
-  let offset = 0;
 
   const segments = items
     .filter((i) => i.value > 0)
-    .map((item, idx) => {
-      const frac = item.value / total;
-      const len = frac * c;
-      const seg = {
-        ...item,
-        color: item.color || PALETTE[idx % PALETTE.length],
-        dash: `${len} ${c - len}`,
-        offset: -offset,
-      };
-      offset += len;
-      return seg;
-    });
+    .reduce<{ offset: number; out: Array<ChartItem & { color: string; dash: string; offset: number }> }>(
+      (acc, item, idx) => {
+        const frac = item.value / total;
+        const len = frac * c;
+        acc.out.push({
+          ...item,
+          color: item.color || PALETTE[idx % PALETTE.length],
+          dash: `${len} ${c - len}`,
+          offset: -acc.offset,
+        });
+        acc.offset += len;
+        return acc;
+      },
+      { offset: 0, out: [] }
+    ).out;
 
   return (
     <div className={cn("flex flex-wrap items-center gap-4", className)}>

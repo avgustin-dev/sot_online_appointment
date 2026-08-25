@@ -266,6 +266,7 @@ export default function StaffCalendarPage() {
                       )}
                       {canAct() &&
                         apt.status !== "cancelled" &&
+                        apt.status !== "accepted" &&
                         apt.status !== "completed" &&
                         apt.status !== "pending_review" &&
                         apt.status !== "rejected" && (

@@ -119,7 +119,9 @@ export default function ContentCmsPage() {
     useStore();
   const { lang } = useI18n();
   const isKy = lang === "ky";
-  const canEdit = !!currentUser && currentUser.role === "admin";
+  const canEdit =
+    !!currentUser &&
+    (currentUser.role === "admin" || currentUser.role === "reception");
 
   const [tab, setTab] = useState<Tab>("leadership");
   const [draft, setDraft] = useState<ServiceContent>(() =>
@@ -130,6 +132,7 @@ export default function ContentCmsPage() {
 
   useEffect(() => {
     if (!ready) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- разовая подгрузка черновика после гидратации стора
     setDraft(mergeServiceContent(state.serviceContent));
   }, [ready]);
 
@@ -216,8 +219,8 @@ export default function ContentCmsPage() {
       {!canEdit && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           {isKy
-            ? "Көрүү гана. Түзөтүү: admin."
-            : "Только просмотр. Редактирование: admin."}
+            ? "Көрүү гана. Түзөтүү — администратор же справочная."
+            : "Только просмотр. Редактирование: администратор или справочная."}
         </div>
       )}
 
@@ -425,7 +428,7 @@ export default function ContentCmsPage() {
                 disabled={!canEdit}
               />
             </Pair>
-            <Pair title={isKy ? "Эскертме" : "Памятка"}>
+            <Pair title={isKy ? "Тартип" : "Порядок"}>
               <Field
                 label="Заголовок (RU)"
                 value={draft.memoTitleRu}

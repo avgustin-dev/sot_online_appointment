@@ -32,9 +32,11 @@ import { backend } from "@/api/client";
 import { useRemoteApi } from "@/config/env";
 import { catalog } from "./catalog";
 import { wrapRemote, withPin } from "./storeRemote";
+import { wrapLocal } from "./storeLocal";
+import { buildSeedState, ensureSeedStaff } from "./seed";
 
-export const STORAGE_KEY = "vs-kr-citizen-platform-v9";
-const STATE_VERSION = 9;
+export const STORAGE_KEY = "vs-kr-citizen-platform-v13";
+const STATE_VERSION = 13;
 
 function seedEligibilityTree(): EligibilityTreeNode[] {
   return cloneEligibilityTree() as EligibilityTreeNode[];
@@ -101,6 +103,9 @@ type PlatformStore = PlatformState & {
 };
 
 function initialData(): PlatformState {
+  if (!useRemoteApi) {
+    return { ...buildSeedState(), version: STATE_VERSION };
+  }
   return {
     version: STATE_VERSION,
     calendar: DEFAULT_CALENDAR,
@@ -133,9 +138,15 @@ export const usePlatformStore = create<PlatformStore>()(
 
       hydrateStaffSession: (profile) => {
         set((s) => {
+          const existing = s.staff.find((u) => u.id === profile.id);
           const others = s.staff.filter((u) => u.id !== profile.id);
           return {
-            staff: [...others, { ...profile, password: "" }],
+            // Пароль сохраняем из уже существующей записи — иначе каждый
+            // вход стирал бы пароль и следующий логин отказывал бы в доступе.
+            staff: [
+              ...others,
+              { ...profile, password: existing?.password ?? "" },
+            ],
             session: { userId: profile.id },
           };
         });
@@ -152,9 +163,9 @@ export const usePlatformStore = create<PlatformStore>()(
         ),
 
       getPreviousAppeals: (appeal) =>
-        get().appeals.filter(
-          (a) => a.id !== appeal.id && matchCitizen(a, appeal)
-        ),
+        get()
+          .appeals.filter((a) => a.id !== appeal.id && matchCitizen(a, appeal))
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
 
       updateSurveyMeta: (patch) => {
         set((s) => ({ surveyMeta: { ...s.surveyMeta, ...patch } }));
@@ -319,19 +330,51 @@ export const usePlatformStore = create<PlatformStore>()(
       ),
       version: STATE_VERSION,
       skipHydration: false,
-      // Кэш заявок/обращений/CMS-контента живёт только на сервере — в localStorage
-      // держим лишь сессию и выбор вкладки кабинета.
-      partialize: (s) => ({
-        version: s.version,
-        session: s.session,
-        adminModule: s.adminModule,
-      }),
+      partialize: (s) => {
+        if (useRemoteApi) {
+          return {
+            version: s.version,
+            session: s.session,
+            adminModule: s.adminModule,
+          };
+        }
+        return {
+          version: s.version,
+          calendar: s.calendar,
+          staff: s.staff,
+          appointments: s.appointments,
+          appeals: s.appeals,
+          session: s.session,
+          surveyMeta: s.surveyMeta,
+          surveyQuestions: s.surveyQuestions,
+          surveyResponses: s.surveyResponses,
+          serviceContent: s.serviceContent,
+          adminModule: s.adminModule,
+          eligibilityTree: s.eligibilityTree,
+          actionLog: s.actionLog,
+        };
+      },
       migrate: (persisted) => {
         const p = persisted as Partial<PlatformState>;
+        if (useRemoteApi) {
+          return {
+            ...initialData(),
+            session: p.session ?? null,
+            adminModule: p.adminModule ?? "reception",
+          } as PlatformState;
+        }
+        const seed = initialData();
+        const staff = p.staff?.length ? ensureSeedStaff(p.staff) : seed.staff;
         return {
-          ...initialData(),
-          session: p.session ?? null,
-          adminModule: p.adminModule ?? "reception",
+          ...seed,
+          ...p,
+          version: STATE_VERSION,
+          staff,
+          appointments: p.appointments ?? seed.appointments,
+          appeals: p.appeals ?? seed.appeals,
+          actionLog: p.actionLog ?? seed.actionLog,
+          calendar: p.calendar ?? seed.calendar,
+          serviceContent: p.serviceContent ?? seed.serviceContent,
         } as PlatformState;
       },
     }
@@ -349,10 +392,30 @@ export function useStore() {
     store as never,
     () => usePlatformStore.getState() as never
   );
+  const local = wrapLocal({
+    getState: () => usePlatformStore.getState(),
+    setState: (partial) => usePlatformStore.setState(partial as never),
+    hydrateStaffSession: store.hydrateStaffSession,
+    upsertAppointment: store.upsertAppointment,
+    upsertAppeal: store.upsertAppeal,
+    updateSurveyMeta: store.updateSurveyMeta,
+    saveSurveyQuestion: store.saveSurveyQuestion,
+    deleteSurveyQuestion: store.deleteSurveyQuestion,
+    reorderSurveyQuestion: store.reorderSurveyQuestion,
+    resetSurveyQuestions: store.resetSurveyQuestions,
+    updateServiceContent: store.updateServiceContent,
+    setEligibilityTree: store.setEligibilityTree,
+    patchEligibilityNode: store.patchEligibilityNode,
+    removeEligibilityNode: store.removeEligibilityNode,
+    addEligibilityNode: store.addEligibilityNode,
+    resetEligibilityTree: store.resetEligibilityTree,
+  });
+  const api = useRemoteApi ? remote : local;
 
   useEffect(() => {
     const persistApi = usePlatformStore.persist;
     if (!persistApi) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- гидратация Zustand доступна только на клиенте
       setReady(true);
       return;
     }
@@ -367,6 +430,25 @@ export function useStore() {
       window.clearTimeout(t);
     };
   }, []);
+
+  useEffect(() => {
+    if (!ready || useRemoteApi) return;
+    const s = usePlatformStore.getState();
+    if (!s.staff?.length) {
+      const seed = buildSeedState();
+      usePlatformStore.setState({
+        ...seed,
+        version: STATE_VERSION,
+        session: s.session,
+        adminModule: s.adminModule ?? "reception",
+      });
+      return;
+    }
+    const staff = ensureSeedStaff(s.staff);
+    if (staff !== s.staff) {
+      usePlatformStore.setState({ staff });
+    }
+  }, [ready]);
 
   useEffect(() => {
     if (!ready || !useRemoteApi) return;
@@ -440,49 +522,51 @@ export function useStore() {
       eligibilityTree: store.eligibilityTree?.length
         ? store.eligibilityTree
         : FALLBACK_ELIGIBILITY,
+      actionLog: store.actionLog ?? [],
     } satisfies PlatformState,
     currentUser,
     hydrateStaffSession: store.hydrateStaffSession,
     logout: store.logout,
-    updateCalendar: remote.updateCalendar,
-    bookAppointment: remote.bookAppointment,
-    confirmAppointmentRequest: remote.confirmAppointmentRequest,
-    rejectAppointmentRequest: remote.rejectAppointmentRequest,
-    findAppointment: remote.findAppointment,
-    lookupByCode: remote.lookupByCode,
-    recoverCodesByPhone: remote.recoverCodesByPhone,
-    cancelAppointment: remote.cancelAppointment,
-    rescheduleAppointment: remote.rescheduleAppointment,
-    staffCancelAppointment: remote.staffCancelAppointment,
-    staffRestoreAppointment: remote.staffRestoreAppointment,
-    staffSetAppointmentStatus: remote.staffSetAppointmentStatus,
-    staffRescheduleAppointment: remote.staffRescheduleAppointment,
-    staffUpdateCitizenData: remote.staffUpdateCitizenData,
-    staffSetAppealStage: remote.staffSetAppealStage,
-    startPrep: remote.startPrep,
-    completePrep: remote.completePrep,
-    completeReception: remote.completeReception,
-    assignAppeal: remote.assignAppeal,
-    addControlLog: remote.addControlLog,
-    setAssignmentStatus: remote.setAssignmentStatus,
-    submitFinalAnswer: remote.submitFinalAnswer,
-    submitFeedback: remote.submitFeedback,
+    loginStaff: local.loginStaff,
+    updateCalendar: api.updateCalendar,
+    bookAppointment: api.bookAppointment,
+    confirmAppointmentRequest: api.confirmAppointmentRequest,
+    rejectAppointmentRequest: api.rejectAppointmentRequest,
+    findAppointment: api.findAppointment,
+    lookupByCode: api.lookupByCode,
+    recoverCodesByPhone: api.recoverCodesByPhone,
+    cancelAppointment: api.cancelAppointment,
+    rescheduleAppointment: api.rescheduleAppointment,
+    staffCancelAppointment: api.staffCancelAppointment,
+    staffRestoreAppointment: api.staffRestoreAppointment,
+    staffSetAppointmentStatus: api.staffSetAppointmentStatus,
+    staffRescheduleAppointment: api.staffRescheduleAppointment,
+    staffUpdateCitizenData: api.staffUpdateCitizenData,
+    staffSetAppealStage: api.staffSetAppealStage,
+    startPrep: api.startPrep,
+    completePrep: api.completePrep,
+    completeReception: api.completeReception,
+    assignAppeal: api.assignAppeal,
+    addControlLog: api.addControlLog,
+    setAssignmentStatus: api.setAssignmentStatus,
+    submitFinalAnswer: api.submitFinalAnswer,
+    submitFeedback: api.submitFeedback,
     getAppealByCode: store.getAppealByCode,
     getPreviousAppeals: store.getPreviousAppeals,
-    updateSurveyMeta: remote.updateSurveyMeta,
-    saveSurveyQuestion: remote.saveSurveyQuestion,
-    deleteSurveyQuestion: remote.deleteSurveyQuestion,
-    reorderSurveyQuestion: remote.reorderSurveyQuestion,
-    resetSurveyQuestions: remote.resetSurveyQuestions,
-    pushSurvey: remote.pushSurvey,
-    updateServiceContent: remote.updateServiceContent,
-    patchLeadershipSchedule: remote.patchLeadershipSchedule,
+    updateSurveyMeta: api.updateSurveyMeta,
+    saveSurveyQuestion: api.saveSurveyQuestion,
+    deleteSurveyQuestion: api.deleteSurveyQuestion,
+    reorderSurveyQuestion: api.reorderSurveyQuestion,
+    resetSurveyQuestions: api.resetSurveyQuestions,
+    pushSurvey: api.pushSurvey,
+    updateServiceContent: api.updateServiceContent,
+    patchLeadershipSchedule: api.patchLeadershipSchedule,
     setAdminModule: store.setAdminModule,
     resetServiceContent: store.resetServiceContent,
-    setEligibilityTree: remote.setEligibilityTree,
-    patchEligibilityNode: remote.patchEligibilityNode,
-    removeEligibilityNode: remote.removeEligibilityNode,
-    addEligibilityNode: remote.addEligibilityNode,
-    resetEligibilityTree: remote.resetEligibilityTree,
+    setEligibilityTree: api.setEligibilityTree,
+    patchEligibilityNode: api.patchEligibilityNode,
+    removeEligibilityNode: api.removeEligibilityNode,
+    addEligibilityNode: api.addEligibilityNode,
+    resetEligibilityTree: api.resetEligibilityTree,
   };
 }

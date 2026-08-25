@@ -152,7 +152,7 @@ export default function HomePage() {
       </section>
 
       <div className="mx-auto max-w-5xl space-y-4 px-4 py-6 md:px-6 md:py-8">
-        {/* Памятка */}
+        {/* Порядок */}
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-relaxed text-court-ink sm:px-5">
           <div className="font-semibold text-amber-900">{memoTitle}</div>
           <ul className="mt-2 list-disc space-y-1.5 pl-4 text-amber-950/90">

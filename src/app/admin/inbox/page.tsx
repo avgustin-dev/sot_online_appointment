@@ -16,7 +16,7 @@ import { targetShort } from "@/lib/targets";
 import { useI18n } from "@/lib/i18n";
 import type { Appointment } from "@/lib/types";
 
-const FINAL_STATUSES = new Set(["cancelled", "rejected", "completed"]);
+const FINAL_STATUSES = new Set(["cancelled", "rejected", "completed", "accepted"]);
 
 export default function InboxPage() {
   const { state, currentUser, staffRescheduleAppointment, staffCancelAppointment } =

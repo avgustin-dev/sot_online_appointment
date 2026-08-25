@@ -19,13 +19,14 @@ export default function ReceptionPage() {
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
   const [selectedId, setSelectedId] = useState<string>("");
-  const [citizenStatement, setCitizenStatement] = useState("");
   const [leadershipExplanation, setLeadershipExplanation] = useState("");
   const [assignmentText, setAssignmentText] = useState("");
   const [responsibleUserId, setResponsibleUserId] = useState("");
   const [specialistsInvolved, setSpecialistsInvolved] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+
+  const isDeputyView = currentUser?.role === "responsible";
 
   const queue = useMemo(() => {
     return state.appeals
@@ -41,14 +42,15 @@ export default function ReceptionPage() {
           x.apt &&
           x.apt.status !== "cancelled" &&
           x.apt.status !== "rejected" &&
-          x.apt.status !== "pending_review"
+          x.apt.status !== "pending_review" &&
+          (!isDeputyView || x.apt.targetId === currentUser?.targetId)
       )
       .sort((a, b) => {
         const da = `${a.apt!.date}${a.apt!.slotStart}`;
         const db = `${b.apt!.date}${b.apt!.slotStart}`;
         return da.localeCompare(db);
       });
-  }, [state.appeals, state.appointments]);
+  }, [state.appeals, state.appointments, isDeputyView, currentUser?.targetId]);
 
   const prepQueue = queue.filter((q) =>
     ["registered", "under_review"].includes(q.appeal.stage)
@@ -64,7 +66,6 @@ export default function ReceptionPage() {
   function openItem(appealId: string) {
     setSelectedId(appealId);
     setErr("");
-    setCitizenStatement("");
     setLeadershipExplanation("");
     setAssignmentText("");
     setResponsibleUserId("");
@@ -85,7 +86,7 @@ export default function ReceptionPage() {
       return;
     }
     const rec = await completeReception(selected.appeal.id, currentUser, {
-      citizenStatement,
+      citizenStatement: "",
       leadershipExplanation,
       assignmentText,
       responsibleUserId: resp.id,
@@ -111,9 +112,13 @@ export default function ReceptionPage() {
       <AdminHeading
         title={isKy ? "Кабыл алуу" : "Приём"}
         lead={
-          isKy
-            ? "Ырасталган жазылуулар. Даярдоо — карточка. Протокол — жетекчилик."
-            : "Подтверждённые записи. Подготовка карточки. Протокол — руководство."
+          isDeputyView
+            ? isKy
+              ? "Сиздин жеке кабыл алууга ырасталган кайрылуулар."
+              : "Ваши подтверждённые заявки на личный приём."
+            : isKy
+              ? "Ырасталган жазылуулар. Даярдоо — карточка. Протокол — жетекчилик."
+              : "Подтверждённые записи. Подготовка карточки. Протокол — руководство."
         }
       />
       <ReceptionTabs isKy={isKy} />
@@ -245,66 +250,69 @@ export default function ReceptionPage() {
             </div>
           )}
 
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div>
-              <label className="label">Изложение заявителя (суть проблемы / предложения)</label>
-              <textarea
-                className="input min-h-[70px]"
-                value={citizenStatement}
-                onChange={(e) => setCitizenStatement(e.target.value)}
-                required
-                placeholder="Краткое изложение по существу, без ссылок на конкретные дела…"
-              />
+          {canConduct ? (
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div>
+                <label className="label">Разъяснение руководства</label>
+                <textarea
+                  className="input min-h-[70px]"
+                  value={leadershipExplanation}
+                  onChange={(e) => setLeadershipExplanation(e.target.value)}
+                  placeholder="Разъяснение в соответствии с законодательством КР (необязательно)…"
+                />
+              </div>
+              <div>
+                <label className="label">Поручение</label>
+                <textarea
+                  className="input min-h-[60px]"
+                  value={assignmentText}
+                  onChange={(e) => setAssignmentText(e.target.value)}
+                  required
+                  placeholder="Содержание поручения ответственному…"
+                />
+              </div>
+              <div>
+                <label className="label">Ответственный по обращению</label>
+                <select
+                  className="input"
+                  value={responsibleUserId}
+                  onChange={(e) => setResponsibleUserId(e.target.value)}
+                  required
+                >
+                  <option value="">— выберите —</option>
+                  {responsibles.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.fullName} — {r.position}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Привлечённые специалисты</label>
+                <input
+                  className="input"
+                  value={specialistsInvolved}
+                  onChange={(e) => setSpecialistsInvolved(e.target.value)}
+                  placeholder="ФИО, подразделение"
+                />
+              </div>
+              <button type="submit" className="btn-primary !text-sm">
+                Зафиксировать протокол
+              </button>
+            </form>
+          ) : (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+              {selected.apt && (
+                <div className="mb-2 font-medium text-court-navy">
+                  {formatDateRu(selected.apt.date)} · {selected.apt.slotStart}–
+                  {selected.apt.slotEnd}
+                </div>
+              )}
+              Протокол приёма и назначение поручения фиксирует председатель.
+              Вы можете просмотреть карточку заявки или перенести запись при
+              необходимости.
             </div>
-            <div>
-              <label className="label">Разъяснение руководства</label>
-              <textarea
-                className="input min-h-[70px]"
-                value={leadershipExplanation}
-                onChange={(e) => setLeadershipExplanation(e.target.value)}
-                required
-                placeholder="Разъяснение в соответствии с законодательством КР…"
-              />
-            </div>
-            <div>
-              <label className="label">Поручение</label>
-              <textarea
-                className="input min-h-[60px]"
-                value={assignmentText}
-                onChange={(e) => setAssignmentText(e.target.value)}
-                required
-                placeholder="Содержание поручения ответственному…"
-              />
-            </div>
-            <div>
-              <label className="label">Ответственный по обращению</label>
-              <select
-                className="input"
-                value={responsibleUserId}
-                onChange={(e) => setResponsibleUserId(e.target.value)}
-                required
-              >
-                <option value="">— выберите —</option>
-                {responsibles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.fullName} — {r.position}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">Привлечённые специалисты</label>
-              <input
-                className="input"
-                value={specialistsInvolved}
-                onChange={(e) => setSpecialistsInvolved(e.target.value)}
-                placeholder="ФИО, подразделение"
-              />
-            </div>
-            <button type="submit" className="btn-primary !text-sm" disabled={!canConduct}>
-              Зафиксировать протокол
-            </button>
-          </form>
+          )}
         </Modal>
       )}
     </div>

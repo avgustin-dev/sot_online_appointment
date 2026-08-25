@@ -31,6 +31,71 @@ import {
 } from "@/lib/eligibility";
 import { bookableTargets } from "@/lib/targets";
 import { mergeServiceContent, pickLocale } from "@/lib/serviceContent";
+import { saveMyBookingRef } from "@/lib/myBooking";
+
+function RadioBlock({
+  name,
+  options,
+  value,
+  isKy,
+  onChange,
+}: {
+  name: string;
+  options: EligibilityNode[];
+  value: string;
+  isKy: boolean;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <ul className="space-y-1.5">
+      {options.map((opt) => (
+        <li key={opt.id}>
+          <label className="flex cursor-pointer items-start gap-2.5 rounded border border-transparent px-2 py-1.5 text-[15px] leading-snug hover:bg-court-mist">
+            <input
+              type="radio"
+              name={name}
+              className="mt-1 h-4 w-4 shrink-0 accent-court-blue"
+              checked={value === opt.id}
+              onChange={() => onChange(opt.id)}
+            />
+            <span>{isKy ? opt.labelKy : opt.labelRu}</span>
+          </label>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RefusalBlock({
+  msg,
+  isKy,
+  orgName,
+}: {
+  msg: RefusalMessage;
+  isKy: boolean;
+  orgName: string;
+}) {
+  const greeting = isKy ? msg.greetingKy : msg.greetingRu;
+  const body = isKy ? msg.bodyKy : msg.bodyRu;
+  const closing = isKy ? msg.closingKy : msg.closingRu;
+  return (
+    <div className="mt-6 rounded-lg border border-court-line bg-court-mist px-4 py-5 sm:px-6">
+      <div className="mb-3 flex items-center gap-2 text-court-navy">
+        <Scale className="h-4 w-4 text-court-gold" />
+        <span className="text-xs font-semibold uppercase tracking-wide">
+          {orgName}
+        </span>
+      </div>
+      <p className="text-center text-[15px] font-semibold">{greeting}</p>
+      <div className="mt-4 space-y-3 text-[15px] leading-relaxed">
+        {body.map((p) => (
+          <p key={p}>{p}</p>
+        ))}
+      </div>
+      <p className="mt-5 text-center text-[15px] font-medium">{closing}</p>
+    </div>
+  );
+}
 
 /**
  * Запись: правила + допуск (KZ) + правдоподобные поля (UX УЗ) + слоты 20 мин (КР).
@@ -71,7 +136,6 @@ export default function BookPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [applicantType, setApplicantType] = useState("citizen");
-  const [orgName, setOrgName] = useState("");
 
   const [region, setRegion] = useState("");
   const [locality, setLocality] = useState("");
@@ -197,16 +261,6 @@ export default function BookPage() {
           "Укажите корректный номер телефона заявителя.",
           "Кайрылуучунун телефон номерин туура киргизиңиз."
         );
-      if (applicantType === "legal" && !orgName.trim())
-        return L(
-          "Укажите полное наименование организации.",
-          "Уюмдун толук аталышын жазыңыз."
-        );
-      if (applicantType === "rep" && !orgName.trim())
-        return L(
-          "Укажите организацию, от имени которой действуете.",
-          "Кимдин атынан иштеп жатканыңызды көрсөтүңүз."
-        );
     }
     if (s === 3) {
       if (!region.trim() || !locality.trim() || !street.trim())
@@ -290,7 +344,6 @@ export default function BookPage() {
 
     const appendix = [
       typeLabel && `Тип заявителя: ${typeLabel}`,
-      orgName.trim() && `Организация: ${orgName.trim()}`,
       pathNote && `Допуск: ${pathNote}`,
     ]
       .filter(Boolean)
@@ -324,60 +377,9 @@ export default function BookPage() {
       slotEnd: res.appointment.slotEnd,
       targetId: res.appointment.targetId,
     });
-  }
-
-  function RadioBlock({
-    name,
-    options,
-    value,
-    onChange,
-  }: {
-    name: string;
-    options: EligibilityNode[];
-    value: string;
-    onChange: (id: string) => void;
-  }) {
-    return (
-      <ul className="space-y-1.5">
-        {options.map((opt) => (
-          <li key={opt.id}>
-            <label className="flex cursor-pointer items-start gap-2.5 rounded border border-transparent px-2 py-1.5 text-[15px] leading-snug hover:bg-court-mist">
-              <input
-                type="radio"
-                name={name}
-                className="mt-1 h-4 w-4 shrink-0 accent-court-blue"
-                checked={value === opt.id}
-                onChange={() => onChange(opt.id)}
-              />
-              <span>{labelOf(opt)}</span>
-            </label>
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
-  function RefusalBlock({ msg }: { msg: RefusalMessage }) {
-    const greeting = isKy ? msg.greetingKy : msg.greetingRu;
-    const body = isKy ? msg.bodyKy : msg.bodyRu;
-    const closing = isKy ? msg.closingKy : msg.closingRu;
-    return (
-      <div className="mt-6 rounded-lg border border-court-line bg-court-mist px-4 py-5 sm:px-6">
-        <div className="mb-3 flex items-center gap-2 text-court-navy">
-          <Scale className="h-4 w-4 text-court-gold" />
-          <span className="text-xs font-semibold uppercase tracking-wide">
-            {t.orgName}
-          </span>
-        </div>
-        <p className="text-center text-[15px] font-semibold">{greeting}</p>
-        <div className="mt-4 space-y-3 text-[15px] leading-relaxed">
-          {body.map((p) => (
-            <p key={p}>{p}</p>
-          ))}
-        </div>
-        <p className="mt-5 text-center text-[15px] font-medium">{closing}</p>
-      </div>
-    );
+    // Код и PIN сохраняются в этом браузере, чтобы поля на /appointment-status
+    // были заполнены заранее, даже если гражданин случайно закроет страницу.
+    saveMyBookingRef({ code: res.appointment.code, pin: res.pin });
   }
 
   if (result) {
@@ -523,11 +525,14 @@ export default function BookPage() {
                     name={`elig-${lvl.levelIndex}`}
                     options={lvl.options}
                     value={path[lvl.levelIndex] || ""}
+                    isKy={isKy}
                     onChange={(id) => pickLevel(lvl.levelIndex, id)}
                   />
                 </div>
               ))}
-              {blocked && refusalMsg && <RefusalBlock msg={refusalMsg} />}
+              {blocked && refusalMsg && (
+                <RefusalBlock msg={refusalMsg} isKy={isKy} orgName={t.orgName} />
+              )}
             </div>
           )}
 
@@ -624,22 +629,6 @@ export default function BookPage() {
                     ))}
                   </select>
                 </div>
-                {(applicantType === "legal" || applicantType === "rep") && (
-                  <div className="sm:col-span-3">
-                    <label className="label">
-                      {L(
-                        "Полное наименование организации",
-                        "Уюмдун толук аталышы"
-                      )}{" "}
-                      <span className="text-court-danger">*</span>
-                    </label>
-                    <input
-                      className="input"
-                      value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
-                    />
-                  </div>
-                )}
               </div>
             </div>
           )}

@@ -301,7 +301,10 @@ export default function StaffDashboardPage() {
             </Link>
           </div>
           <ul className="divide-y divide-slate-100">
-            {controlOpen.slice(0, 5).map((a) => (
+            {[...controlOpen]
+              .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+              .slice(0, 5)
+              .map((a) => (
               <li key={a.id}>
                 <Link
                   href="/admin/control"

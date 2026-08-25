@@ -135,8 +135,12 @@ export default function EligibilityCmsPage() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState(false);
 
+  // Черновик подтягивается из дерева только при смене выбранного узла —
+  // иначе несвязанное обновление дерева (например, сохранение в другом узле)
+  // затирало бы то, что редактор уже печатает в форме.
   useEffect(() => {
     if (!selectedId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- сброс черновика при снятии выбора узла
       setDraft(null);
       return;
     }
@@ -146,7 +150,8 @@ export default function EligibilityCmsPage() {
       setSelectedId(null);
       setDraft(null);
     }
-  }, [selectedId, tree]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
 
   if (!ready) {
     return <PageLoader label={isKy ? "Жүктөө…" : "Загрузка…"} />;
@@ -292,7 +297,7 @@ export default function EligibilityCmsPage() {
 
   const visibleRows = rows.filter((row) => {
     // hide if any ancestor collapsed
-    let depth = row.depth;
+    const depth = row.depth;
     if (depth === 0) return true;
     // walk ancestors by scanning previous rows
     const ancestors: string[] = [];

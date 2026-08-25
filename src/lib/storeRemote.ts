@@ -438,7 +438,7 @@ export function wrapRemote(
 
     setAssignmentStatus: async (
       appealId: string,
-      status: "not_assigned" | "assigned" | "in_progress" | "done" | "needs_rework"
+      status: import("./types").AssignmentStatus
     ) => {
       try {
         await backend.staff.setAssignmentStatus(appealId, { status });

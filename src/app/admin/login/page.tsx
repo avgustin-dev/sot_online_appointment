@@ -11,9 +11,11 @@ import { backend } from "@/api/client";
 import { ApiError } from "@/api/http";
 import { setAccessToken } from "@/api/session";
 import { staffHomePath } from "@/lib/staff";
+import { DEMO_ACCOUNTS } from "@/lib/acl";
+import { useRemoteApi } from "@/config/env";
 
 export default function AdminLoginPage() {
-  const { hydrateStaffSession, currentUser, ready } = useStore();
+  const { hydrateStaffSession, currentUser, ready, state, loginStaff } = useStore();
   const router = useRouter();
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
@@ -24,14 +26,24 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     if (!ready || !currentUser) return;
-    router.replace(staffHomePath(currentUser));
-  }, [ready, currentUser, router]);
+    const pending = state.appointments.some((a) => a.status === "pending_review");
+    router.replace(staffHomePath(currentUser, pending));
+  }, [ready, currentUser, router, state.appointments]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setBusy(true);
     try {
+      if (!useRemoteApi && loginStaff) {
+        const data = await loginStaff(loginName.trim(), password);
+        if (!data.ok) {
+          setError(data.error);
+          return;
+        }
+        hydrateStaffSession(data.user);
+        return;
+      }
       const data = await backend.auth.login({
         login: loginName.trim(),
         password,
@@ -127,6 +139,40 @@ export default function AdminLoginPage() {
               </button>
             </div>
           </form>
+
+          {!useRemoteApi && (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
+              <p className="font-semibold text-slate-900">
+                {isKy ? "Демо-кирүү (презентация)" : "Демо-вход (презентация)"}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {isKy
+                  ? "Сырсөз бардыгы үчүн: 1111"
+                  : "Пароль для всех учёток: 1111"}
+              </p>
+              <ul className="mt-3 space-y-2">
+                {DEMO_ACCOUNTS.map((a) => (
+                  <li key={a.login}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left hover:bg-slate-50"
+                      onClick={() => {
+                        setLoginName(a.login);
+                        setPassword(a.password);
+                      }}
+                    >
+                      <span className="font-medium text-slate-800">
+                        {isKy ? a.labelKy : a.labelRu}
+                      </span>
+                      <span className="font-mono text-xs text-slate-500">
+                        {a.login}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="mt-4 text-center text-sm">
             <Link

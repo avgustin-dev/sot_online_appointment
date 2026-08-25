@@ -38,6 +38,7 @@ export default function FeedbackByCodePage() {
 
   useEffect(() => {
     if (!appeal?.feedback) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- подгрузка уже отправленной оценки при открытии страницы
     setScores({
       respectful: appeal.feedback.respectful,
       clearNextSteps: appeal.feedback.clearNextSteps,

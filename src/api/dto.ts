@@ -183,7 +183,7 @@ export type AddControlLogRequest = {
 };
 
 export type SetAssignmentStatusRequest = {
-  status: "not_assigned" | "assigned" | "in_progress" | "done" | "needs_rework";
+  status: import("@/lib/types").AssignmentStatus;
 };
 
 export type LeadershipScheduleRequest = {

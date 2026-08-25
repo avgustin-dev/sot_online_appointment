@@ -1,7 +1,7 @@
 /**
- * Среда фронта. Все данные и действия идут через бэкенд (NEXT_PUBLIC_API_URL).
- * Локального дублирования бизнес-логики нет — без заданного API кабинет и запись
- * не работают (см. sot-reception-api).
+ * Среда фронта.
+ * Если NEXT_PUBLIC_API_URL задан — данные идут на бэкенд.
+ * Если пусто — локальный контур (Zustand / localStorage), для показа без API.
  */
 export const env = {
   apiUrl: (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, ""),

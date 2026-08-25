@@ -109,5 +109,6 @@ export type Dict = {
     analytics: string;
     survey: string;
     settings: string;
+    journal: string;
   };
 };

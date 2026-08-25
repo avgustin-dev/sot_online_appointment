@@ -109,7 +109,8 @@ export function displayToIso(input: string): string | null {
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/);
   if (!m) return null;
-  let [, dd, mm, yy] = m;
+  const [, dd, mm, yyRaw] = m;
+  let yy = yyRaw;
   if (yy.length === 2) yy = `20${yy}`;
   const d = parseInt(dd, 10);
   const mo = parseInt(mm, 10);

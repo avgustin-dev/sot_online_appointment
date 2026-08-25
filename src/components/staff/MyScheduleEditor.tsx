@@ -37,12 +37,18 @@ export function MyScheduleEditor({ isKy }: { isKy?: boolean }) {
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Подтягиваем сохранённый график только один раз при заходе на страницу —
+  // иначе сохранение в соседней вкладке (например, в CMS «Сайт») перезатёрло
+  // бы то, что оператор уже успел напечатать здесь.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   useEffect(() => {
-    if (!current) return;
+    if (!current || loadedFor === current.id) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- разовая подгрузка формы после гидратации стора
     setWeekdays(current.weekdays);
     setStartTime(minutesToTime(current.startMinutes));
     setEndTime(minutesToTime(current.endMinutes));
-  }, [current?.id, current?.weekdays, current?.startMinutes, current?.endMinutes]);
+    setLoadedFor(current.id);
+  }, [current, loadedFor]);
 
   if (!targetId) return null;
 
