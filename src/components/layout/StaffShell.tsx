@@ -19,6 +19,8 @@ import {
   GitBranch,
   BookOpen,
   Inbox,
+  FileCheck2,
+  CalendarClock,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { useStore } from "@/lib/store";
@@ -61,10 +63,17 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
   const survey = pathname.startsWith("/admin/survey");
   const role = currentUser?.role;
 
-  const canQueue = role !== "responsible";
-  const canSettings =
-    role === "admin" || role === "leadership" || role === "reception";
+  const canInbox = role === "admin" || role === "reception";
+  const canReception = role === "admin" || role === "leadership";
+  const canJournal = role === "admin" || role === "leadership";
+  const canControl =
+    role === "admin" || role === "leadership" || role === "responsible";
+  const canProtocols = role === "admin" || role === "leadership";
+  const canMySchedule =
+    (role === "admin" || role === "leadership" || role === "responsible") &&
+    !!currentUser?.targetId;
   const canAnalytics = role === "admin" || role === "leadership";
+  const canSettings = role === "admin";
   const canSurvey = canSettings;
 
   const workNav: NavItem[] = useMemo(() => {
@@ -76,13 +85,15 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
         exact: true,
       },
     ];
-    if (canQueue) {
+    if (canInbox) {
       items.push({
         href: "/admin/inbox",
         label: isKy ? "Өтүнмөлөр" : "Заявки",
         icon: Inbox,
         badge: pendingCount || undefined,
       });
+    }
+    if (canReception) {
       items.push({
         href: "/admin/reception",
         label: isKy ? "Кабыл алуу" : "Приём",
@@ -90,22 +101,40 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
         prefixes: ["/admin/reception", "/admin/calendar"],
       });
     }
-    items.push({
-      href: "/admin/appeals",
-      label: isKy ? "Карточкалар" : "Карточки",
-      icon: FileText,
-    });
-    items.push({
-      href: "/admin/control",
-      label: isKy ? "Тапшырмалар" : "Поручения",
-      icon: ClipboardCheck,
-      badge: overdueCount || undefined,
-    });
+    if (canJournal) {
+      items.push({
+        href: "/admin/appeals",
+        label: isKy ? "Кайрылуулар" : "Заявки и обращения",
+        icon: FileText,
+      });
+    }
+    if (canControl) {
+      items.push({
+        href: "/admin/control",
+        label: isKy ? "Тапшырмалар" : "Поручения",
+        icon: ClipboardCheck,
+        badge: overdueCount || undefined,
+      });
+    }
+    if (canProtocols) {
+      items.push({
+        href: "/admin/protocols",
+        label: isKy ? "Протоколдор" : "Протоколы",
+        icon: FileCheck2,
+      });
+    }
     return items;
-  }, [isKy, canQueue, pendingCount, overdueCount]);
+  }, [isKy, canInbox, canReception, canJournal, canControl, canProtocols, pendingCount, overdueCount]);
 
   const refNav: NavItem[] = useMemo(() => {
     const items: NavItem[] = [];
+    if (canMySchedule) {
+      items.push({
+        href: "/admin/my-schedule",
+        label: isKy ? "Графигим" : "Мой график",
+        icon: CalendarClock,
+      });
+    }
     if (canAnalytics) {
       items.push({
         href: "/admin/analytics",
@@ -138,7 +167,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
       icon: BookOpen,
     });
     return items;
-  }, [isKy, canAnalytics, canSettings]);
+  }, [isKy, canMySchedule, canAnalytics, canSettings]);
 
   const surveyNav: NavItem[] = useMemo(
     () => [
@@ -162,12 +191,6 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
       router.replace("/admin/login");
     }
   }, [ready, currentUser, pathname, router]);
-
-  useEffect(() => {
-    if (ready && currentUser?.role === "intake") {
-      router.replace("/admin/intake");
-    }
-  }, [ready, currentUser, router]);
 
   if (!ready) {
     return (
@@ -410,7 +433,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            {canQueue && pendingCount > 0 && !survey && (
+            {canInbox && pendingCount > 0 && !survey && (
               <Link
                 href="/admin/inbox"
                 className="hidden items-center rounded-lg bg-court-navy px-3 py-1.5 text-xs font-semibold text-white hover:bg-court-navy/90 sm:inline-flex"

@@ -2,11 +2,10 @@
 
 export type Role =
   | "citizen"
-  | "reception" // отдел по работе с гражданами
+  | "reception" // отдел по работе с гражданами: журнал заявок
   | "leadership" // руководство / Председатель
   | "responsible" // ответственный по обращению
-  | "admin"
-  | "intake"; // приёмный отдел: журнал заявок — принять/отклонить/перенести
+  | "admin";
 
 export type AppealStage =
   | "registered" // Этап 1: запись создана
@@ -46,6 +45,8 @@ export interface StaffUser {
   role: Exclude<Role, "citizen">;
   position: string;
   department?: string;
+  /** Связь с записью в content.leadership — какой график/приём "мой" (для leadership/responsible) */
+  targetId?: string;
 }
 
 export interface CalendarSettings {
@@ -82,6 +83,9 @@ export interface Appointment {
   email?: string;
   pin: string; // 4-значный PIN для управления записью
   topic: string;
+  region: string;
+  locality: string;
+  street: string;
   category: AppealCategory;
   description?: string;
   date: string; // YYYY-MM-DD
@@ -101,6 +105,7 @@ export interface AppointmentHistoryItem {
   at: string;
   action: string;
   detail?: string;
+  staffName?: string;
 }
 
 export interface AppealCard {
@@ -111,6 +116,9 @@ export interface AppealCard {
   phone: string;
   email?: string;
   topic: string;
+  region: string;
+  locality: string;
+  street: string;
   category: AppealCategory;
   summary: string;
   stage: AppealStage;
@@ -148,7 +156,7 @@ export interface Assignment {
   responsibleUserId: string;
   responsibleName: string;
   dueDate: string;
-  status: "open" | "in_progress" | "done" | "overdue";
+  status: "not_assigned" | "assigned" | "in_progress" | "done" | "needs_rework";
   createdAt: string;
 }
 

@@ -54,6 +54,9 @@ export type BookAppointmentRequest = {
   phone: string;
   email?: string;
   topic: string;
+  region: string;
+  locality: string;
+  street: string;
   category: import("@/lib/types").AppealCategory;
   description?: string;
   date: string;
@@ -180,7 +183,19 @@ export type AddControlLogRequest = {
 };
 
 export type SetAssignmentStatusRequest = {
-  status: "open" | "in_progress" | "done" | "overdue";
+  status: "not_assigned" | "assigned" | "in_progress" | "done" | "needs_rework";
+};
+
+export type LeadershipScheduleRequest = {
+  weekdays: number[];
+  startMinutes: number;
+  endMinutes: number;
+};
+
+export type AssignExecutorRequest = {
+  responsibleUserId: string;
+  responsibleName: string;
+  text: string;
 };
 
 export type SubmitFinalAnswerRequest = { answer: string };

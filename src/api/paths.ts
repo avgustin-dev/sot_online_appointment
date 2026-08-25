@@ -55,12 +55,15 @@ export const paths = {
     prep: (id: string) => `/staff/appeals/${id}/prep`,
     ready: (id: string) => `/staff/appeals/${id}/ready`,
     reception: (id: string) => `/staff/appeals/${id}/reception`,
+    assign: (id: string) => `/staff/appeals/${id}/assign`,
     control: (id: string) => `/staff/appeals/${id}/control`,
     assignmentStatus: (id: string) =>
       `/staff/appeals/${id}/assignment-status`,
     answer: (id: string) => `/staff/appeals/${id}/answer`,
     stage: (id: string) => `/staff/appeals/${id}/stage`,
     calendar: "/staff/calendar",
+    leadershipSchedule: (targetId: string) =>
+      `/staff/leadership/${encodeURIComponent(targetId)}/schedule`,
     content: "/staff/content",
     eligibility: "/staff/eligibility",
     survey: "/staff/survey",

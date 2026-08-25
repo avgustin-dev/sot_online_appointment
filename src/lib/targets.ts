@@ -85,6 +85,20 @@ export function targetLabel(id: string, isKy = false, sc?: ServiceContent | null
     : row.bookLabelRu || row.fullNameRu || row.bookLabelKy;
 }
 
+/** ФИО и должность лица, ведущего приём — для полной карточки заявки. */
+export function targetPerson(
+  id: string,
+  isKy = false,
+  sc?: ServiceContent | null
+): { fullName: string; position: string } | null {
+  const row = peopleOf(sc).find((r) => r.id === id);
+  if (!row) return null;
+  return {
+    fullName: isKy ? row.fullNameKy || row.fullNameRu : row.fullNameRu || row.fullNameKy,
+    position: isKy ? row.positionKy || row.positionRu : row.positionRu || row.positionKy,
+  };
+}
+
 export function targetShort(id: string, isKy = false, sc?: ServiceContent | null): string {
   const row = peopleOf(sc).find((r) => r.id === id);
   if (!row) return id;

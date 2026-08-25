@@ -56,8 +56,8 @@ export default function BookPage() {
   const STEPS = useMemo(
     () =>
       isKy
-        ? ["Эрежелер", "Допуск", "Жеке маалымат", "Мазмун", "Убакыт"]
-        : ["Правила", "Допуск", "Заявитель", "Обращение", "Дата и время"],
+        ? ["Эрежелер", "Допуск", "Жеке маалымат", "Дарек", "Мазмун", "Убакыт"]
+        : ["Правила", "Допуск", "Заявитель", "Адрес", "Обращение", "Дата и время"],
     [isKy]
   );
 
@@ -72,6 +72,10 @@ export default function BookPage() {
   const [email, setEmail] = useState("");
   const [applicantType, setApplicantType] = useState("citizen");
   const [orgName, setOrgName] = useState("");
+
+  const [region, setRegion] = useState("");
+  const [locality, setLocality] = useState("");
+  const [street, setStreet] = useState("");
 
   const [target, setTarget] = useState("reception");
   const [topic, setTopic] = useState("");
@@ -205,6 +209,13 @@ export default function BookPage() {
         );
     }
     if (s === 3) {
+      if (!region.trim() || !locality.trim() || !street.trim())
+        return L(
+          "Укажите адрес места проживания / нахождения заявителя.",
+          "Кайрылуучунун жашаган/турган дарегин көрсөтүңүз."
+        );
+    }
+    if (s === 4) {
       if (!target)
         return L(
           "Укажите должностное лицо, к которому записываетесь.",
@@ -226,7 +237,7 @@ export default function BookPage() {
           "Кайрылуунун предмети эрежелерге туура келерин ырастаңыз."
         );
     }
-    if (s === 4 && (!date || !slotStart)) {
+    if (s === 5 && (!date || !slotStart)) {
       return L(
         "Выберите дату и время приёма.",
         "Күн жана убакытты тандаңыз."
@@ -247,7 +258,7 @@ export default function BookPage() {
       const auto = isKy ? leaf.topicKy : leaf.topicRu;
       if (auto && !topic) setTopic(auto);
     }
-    setStep((x) => Math.min(4, x + 1));
+    setStep((x) => Math.min(5, x + 1));
   }
 
   function back() {
@@ -257,7 +268,7 @@ export default function BookPage() {
 
   async function onSubmit() {
     setError("");
-    const err = validateStep(4);
+    const err = validateStep(5);
     if (err) {
       setError(err);
       return;
@@ -290,6 +301,9 @@ export default function BookPage() {
       phone,
       email,
       topic,
+      region,
+      locality,
+      street,
       category,
       description: [description.trim(), appendix].filter(Boolean).join("\n\n"),
       date,
@@ -630,8 +644,64 @@ export default function BookPage() {
             </div>
           )}
 
-          {/* 3 Содержание (без дела!) */}
+          {/* 3 Адрес */}
           {step === 3 && (
+            <div className="space-y-4">
+              <h2 className="text-base font-semibold text-court-navy">
+                {L(
+                  "Место проживания / нахождения заявителя",
+                  "Кайрылуучунун жашаган / турган жери"
+                )}
+              </h2>
+              {fullName && (
+                <div className="rounded border border-court-line bg-court-mist px-3 py-2 text-sm">
+                  <span className="text-xs uppercase text-court-muted">
+                    {L("Заявитель", "Кайрылуучу")}:
+                  </span>{" "}
+                  <strong className="text-court-navy">{fullName}</strong>
+                </div>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="label">
+                    {L("Регион (область / город)", "Аймак (облус / шаар)")}{" "}
+                    <span className="text-court-danger">*</span>
+                  </label>
+                  <input
+                    className="input"
+                    value={region}
+                    onChange={(e) => setRegion(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="label">
+                    {L("Населённый пункт", "Калктуу пункт")}{" "}
+                    <span className="text-court-danger">*</span>
+                  </label>
+                  <input
+                    className="input"
+                    value={locality}
+                    onChange={(e) => setLocality(e.target.value)}
+                    placeholder={L("город, село, посёлок", "шаар, айыл")}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="label">
+                    {L("Улица / микрорайон", "Көчө / кичи район")}{" "}
+                    <span className="text-court-danger">*</span>
+                  </label>
+                  <input
+                    className="input"
+                    value={street}
+                    onChange={(e) => setStreet(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 4 Содержание (без дела!) */}
+          {step === 4 && (
             <div className="space-y-4">
               <h2 className="text-base font-semibold text-court-navy">
                 {L("Сведения об обращении", "Кайрылуу жөнүндө маалымат")}
@@ -795,8 +865,8 @@ export default function BookPage() {
             </div>
           )}
 
-          {/* 4 Календарь */}
-          {step === 4 && (
+          {/* 5 Календарь */}
+          {step === 5 && (
             <div className="space-y-4">
               <h2 className="text-base font-semibold text-court-navy">
                 {t.book.calendarTitle}
@@ -845,7 +915,7 @@ export default function BookPage() {
               <ArrowLeft className="h-4 w-4" />
               {L("Назад", "Артка")}
             </button>
-            {step === 1 && blocked ? null : step < 4 ? (
+            {step === 1 && blocked ? null : step < 5 ? (
               <button
                 type="button"
                 className="btn-primary"

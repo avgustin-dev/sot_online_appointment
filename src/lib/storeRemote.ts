@@ -12,6 +12,9 @@ type BookInput = {
   phone: string;
   email?: string;
   topic: string;
+  region: string;
+  locality: string;
+  street: string;
   category: Appointment["category"];
   description?: string;
   date: string;
@@ -148,6 +151,9 @@ export function wrapRemote(
           phone: apt.phone,
           email: apt.email,
           topic: apt.topic,
+          region: apt.region,
+          locality: apt.locality,
+          street: apt.street,
           category: apt.category,
           summary: apt.topic,
           previousAppealIds: [],
@@ -382,16 +388,6 @@ export function wrapRemote(
       }
     },
 
-    markReadyForReception: async (appealId: string) => {
-      try {
-        await backend.staff.markReady(appealId);
-        await refreshLists(store);
-        return { ok: true as const };
-      } catch (e) {
-        return fail(e);
-      }
-    },
-
     completeReception: async (
       appealId: string,
       _user: StaffProfile,
@@ -399,6 +395,25 @@ export function wrapRemote(
     ) => {
       try {
         await backend.staff.completeReception(appealId, protocol);
+        await refreshLists(store);
+        return { ok: true as const };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+
+    assignAppeal: async (
+      appealId: string,
+      responsibleUserId: string,
+      responsibleName: string,
+      text: string
+    ) => {
+      try {
+        await backend.staff.assignAppeal(appealId, {
+          responsibleUserId,
+          responsibleName,
+          text,
+        });
         await refreshLists(store);
         return { ok: true as const };
       } catch (e) {
@@ -423,7 +438,7 @@ export function wrapRemote(
 
     setAssignmentStatus: async (
       appealId: string,
-      status: "open" | "in_progress" | "done" | "overdue"
+      status: "not_assigned" | "assigned" | "in_progress" | "done" | "needs_rework"
     ) => {
       try {
         await backend.staff.setAssignmentStatus(appealId, { status });
@@ -455,6 +470,21 @@ export function wrapRemote(
         const next = { ...getState().calendar, ...patch };
         const saved = await backend.staff.putCalendar(next);
         store.replaceStaffLists({ calendar: saved });
+        return { ok: true as const };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+
+    patchLeadershipSchedule: async (
+      targetId: string,
+      patch: { weekdays: number[]; startMinutes: number; endMinutes: number }
+    ) => {
+      try {
+        const content = await backend.staff.patchLeadershipSchedule(targetId, patch);
+        store.updateServiceContent({
+          leadership: (content as import("./types").ServiceContent).leadership,
+        });
         return { ok: true as const };
       } catch (e) {
         return fail(e);

@@ -119,9 +119,7 @@ export default function ContentCmsPage() {
     useStore();
   const { lang } = useI18n();
   const isKy = lang === "ky";
-  const canEdit =
-    !!currentUser &&
-    ["admin", "reception", "leadership"].includes(currentUser.role);
+  const canEdit = !!currentUser && currentUser.role === "admin";
 
   const [tab, setTab] = useState<Tab>("leadership");
   const [draft, setDraft] = useState<ServiceContent>(() =>
@@ -218,8 +216,8 @@ export default function ContentCmsPage() {
       {!canEdit && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           {isKy
-            ? "Көрүү гана. Түзөтүү: admin, reception, leadership."
-            : "Только просмотр. Редактирование: admin, reception, leadership."}
+            ? "Көрүү гана. Түзөтүү: admin."
+            : "Только просмотр. Редактирование: admin."}
         </div>
       )}
 

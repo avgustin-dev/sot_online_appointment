@@ -13,7 +13,7 @@ import { setAccessToken } from "@/api/session";
 import { staffHomePath } from "@/lib/staff";
 
 export default function AdminLoginPage() {
-  const { hydrateStaffSession, currentUser, ready, state } = useStore();
+  const { hydrateStaffSession, currentUser, ready } = useStore();
   const router = useRouter();
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
@@ -24,9 +24,8 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     if (!ready || !currentUser) return;
-    const pending = state.appointments.some((a) => a.status === "pending_review");
-    router.replace(staffHomePath(currentUser, pending));
-  }, [ready, currentUser, router, state.appointments]);
+    router.replace(staffHomePath(currentUser));
+  }, [ready, currentUser, router]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

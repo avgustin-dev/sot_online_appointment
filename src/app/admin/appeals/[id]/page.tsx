@@ -22,7 +22,7 @@ import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Collapsible } from "@/components/ui/Collapsible";
 import { useI18n } from "@/lib/i18n";
 import { ReviewRequestPanel } from "@/components/staff/ReviewRequestPanel";
-import { targetShort } from "@/lib/targets";
+import { targetPerson, targetShort } from "@/lib/targets";
 import { SlotPicker } from "@/components/booking/SlotPicker";
 
 export default function AppealDetailPage() {
@@ -283,9 +283,34 @@ export default function AppealDetailPage() {
               </p>
             </div>
             <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-              <div className="text-[11px] text-slate-500">Адресат приёма</div>
-              <div className="mt-0.5 font-medium text-slate-900">
-                {targetShort(appointment.targetId, false, state.serviceContent)}
+              <div className="text-[11px] text-slate-500">
+                ФИО и должность лица, ведущего приём
+              </div>
+              {(() => {
+                const person = targetPerson(
+                  appointment.targetId,
+                  false,
+                  state.serviceContent
+                );
+                return (
+                  <div className="mt-0.5">
+                    <div className="font-medium text-slate-900">
+                      {person?.fullName ||
+                        targetShort(appointment.targetId, false, state.serviceContent)}
+                    </div>
+                    {person?.position && (
+                      <div className="text-xs text-slate-500">{person.position}</div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+              <div className="text-[11px] text-slate-500">Адрес заявителя</div>
+              <div className="mt-0.5 text-sm text-slate-800">
+                {[appeal.region, appeal.locality, appeal.street]
+                  .filter(Boolean)
+                  .join(", ") || "Не указан"}
               </div>
             </div>
             <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
@@ -735,6 +760,12 @@ export default function AppealDetailPage() {
                   <dt className="text-xs text-slate-500">Ответственный</dt>
                   <dd>{appeal.receptionProtocol.responsibleName}</dd>
                 </div>
+                {appeal.assignment && (
+                  <div>
+                    <dt className="text-xs text-slate-500">Статус поручения</dt>
+                    <dd className="font-medium">{appeal.assignment.status}</dd>
+                  </div>
+                )}
               </dl>
             </Collapsible>
           )}
@@ -827,6 +858,7 @@ export default function AppealDetailPage() {
                       <div className="text-slate-500">{h.detail}</div>
                     )}
                     <div className="mt-1 text-[10px] text-slate-400">
+                      {h.staffName ? `${h.staffName} · ` : ""}
                       {new Date(h.at).toLocaleString("ru-RU")}
                     </div>
                   </li>

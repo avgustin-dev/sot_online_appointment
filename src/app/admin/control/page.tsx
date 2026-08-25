@@ -7,14 +7,14 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
+  ClipboardCheck,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { StageBadge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
-import { Collapsible } from "@/components/ui/Collapsible";
 import { AdminHeading } from "@/components/staff/AdminHeading";
-import { ClipboardCheck } from "lucide-react";
+import { Modal } from "@/components/ui/Modal";
 import { useI18n } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -38,16 +38,16 @@ export default function ControlPage() {
   } = useStore();
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
+  const L = (ru: string, ky: string) => (isKy ? ky : ru);
   const [selectedId, setSelectedId] = useState("");
-  const [filter, setFilter] = useState<"all" | "open" | "overdue" | "done">(
-    "all"
-  );
+  const [filter, setFilter] = useState<"all" | "open" | "overdue" | "done">("all");
   const [action, setAction] = useState(ACTION_PRESETS[0].ru);
   const [comment, setComment] = useState("");
   const [answer, setAnswer] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState(false);
 
+  const readOnly = currentUser?.role === "leadership" || currentUser?.role === "admin";
   const today = new Date().toISOString().slice(0, 10);
 
   const items = useMemo(() => {
@@ -55,9 +55,7 @@ export default function ControlPage() {
       ["in_control", "answered", "reception_done", "closed"].includes(a.stage)
     );
     if (currentUser?.role === "responsible") {
-      list = list.filter(
-        (a) => a.assignment?.responsibleUserId === currentUser.id
-      );
+      list = list.filter((a) => a.assignment?.responsibleUserId === currentUser.id);
     }
     list = list.sort((a, b) => {
       const da = a.assignment?.dueDate || "9999";
@@ -66,10 +64,7 @@ export default function ControlPage() {
     });
     if (filter === "open") {
       list = list.filter(
-        (a) =>
-          a.stage === "in_control" &&
-          a.assignment &&
-          a.assignment.status !== "done"
+        (a) => a.stage === "in_control" && a.assignment && a.assignment.status !== "done"
       );
     }
     if (filter === "overdue") {
@@ -83,27 +78,23 @@ export default function ControlPage() {
     }
     if (filter === "done") {
       list = list.filter(
-        (a) =>
-          a.stage === "answered" ||
-          a.stage === "closed" ||
-          a.assignment?.status === "done"
+        (a) => a.stage === "answered" || a.stage === "closed" || a.assignment?.status === "done"
       );
     }
     return list;
   }, [state.appeals, currentUser, filter, today]);
 
-  const selected = items.find((a) => a.id === selectedId) ||
-    state.appeals.find((a) => a.id === selectedId);
+  const selected = items.find((a) => a.id === selectedId);
 
   const counts = useMemo(() => {
-    const base = state.appeals.filter((a) =>
+    let base = state.appeals.filter((a) =>
       ["in_control", "answered", "reception_done", "closed"].includes(a.stage)
     );
+    if (currentUser?.role === "responsible") {
+      base = base.filter((a) => a.assignment?.responsibleUserId === currentUser.id);
+    }
     const open = base.filter(
-      (a) =>
-        a.stage === "in_control" &&
-        a.assignment &&
-        a.assignment.status !== "done"
+      (a) => a.stage === "in_control" && a.assignment && a.assignment.status !== "done"
     ).length;
     const overdue = base.filter(
       (a) =>
@@ -113,13 +104,17 @@ export default function ControlPage() {
         a.assignment.status !== "done"
     ).length;
     const done = base.filter(
-      (a) =>
-        a.stage === "answered" ||
-        a.stage === "closed" ||
-        a.assignment?.status === "done"
+      (a) => a.stage === "answered" || a.stage === "closed" || a.assignment?.status === "done"
     ).length;
     return { open, overdue, done, all: base.length };
-  }, [state.appeals, today]);
+  }, [state.appeals, currentUser, today]);
+
+  function openItem(id: string) {
+    setSelectedId(id);
+    setMsg("");
+    setAnswer("");
+    setComment("");
+  }
 
   async function onLog(e: React.FormEvent) {
     e.preventDefault();
@@ -133,7 +128,7 @@ export default function ControlPage() {
     await setAssignmentStatus(selected.id, "in_progress");
     setComment("");
     setErr(false);
-    setMsg(isKy ? "Журналга жазуу кошулду." : "Запись в журнале добавлена.");
+    setMsg(L("Запись в журнале добавлена.", "Журналга жазуу кошулду."));
   }
 
   async function onAnswer(e: React.FormEvent) {
@@ -141,11 +136,7 @@ export default function ControlPage() {
     if (!currentUser || !selected) return;
     if (answer.trim().length < 20) {
       setErr(true);
-      setMsg(
-        isKy
-          ? "Жооп өтө кыска (кеминде ~20 белги)."
-          : "Ответ слишком короткий (минимум ~20 символов)."
-      );
+      setMsg(L("Протокол слишком короткий (минимум ~20 символов).", "Протокол өтө кыска."));
       return;
     }
     const sent = await submitFinalAnswer(selected.id, currentUser, answer);
@@ -156,19 +147,13 @@ export default function ControlPage() {
     }
     setAnswer("");
     setErr(false);
-    setMsg(
-      isKy
-        ? `Жооп жөнөтүлдү. Жаран баалай алат: ${routes.evaluationByCode(selected.code)}`
-        : `Ответ направлен. Гражданин может оценить: ${routes.evaluationByCode(selected.code)}`
-    );
+    setMsg(L("Протокол сохранён. Обращение завершено.", "Протокол сакталды."));
   }
 
-  function isOverdue(a: typeof selected) {
-    if (!a?.assignment) return false;
+  function isOverdue(a: (typeof items)[number]) {
+    if (!a.assignment) return false;
     return (
-      a.stage === "in_control" &&
-      a.assignment.dueDate < today &&
-      a.assignment.status !== "done"
+      a.stage === "in_control" && a.assignment.dueDate < today && a.assignment.status !== "done"
     );
   }
 
@@ -183,19 +168,19 @@ export default function ControlPage() {
       <AdminHeading
         title={isKy ? "Тапшырмалар" : "Поручения"}
         lead={
-          isKy
-            ? "Журнал, мөөнөт, жооп жаранга."
-            : "Журнал исполнения, срок, ответ заявителю."
+          readOnly
+            ? L("Список поручений, исполнитель и статус.", "Тапшырмалардын тизмеси.")
+            : L("Журнал исполнения, срок, протокол.", "Аткаруу журналы, мөөнөт, протокол.")
         }
       />
 
       <div className="grid gap-2 sm:grid-cols-4">
         {(
           [
-            { key: "all" as const, label: isKy ? "Баары" : "Все", n: counts.all, icon: ClipboardCheck },
-            { key: "open" as const, label: isKy ? "Ачык" : "В работе", n: counts.open, icon: Clock },
-            { key: "overdue" as const, label: isKy ? "Мөөнөтү өткөн" : "Просрочено", n: counts.overdue, icon: AlertTriangle },
-            { key: "done" as const, label: isKy ? "Бүттү" : "Закрыто", n: counts.done, icon: CheckCircle2 },
+            { key: "all" as const, label: L("Все", "Баары"), n: counts.all, icon: ClipboardCheck },
+            { key: "open" as const, label: L("В работе", "Ачык"), n: counts.open, icon: Clock },
+            { key: "overdue" as const, label: L("Просрочено", "Мөөнөтү өткөн"), n: counts.overdue, icon: AlertTriangle },
+            { key: "done" as const, label: L("Завершено", "Бүттү"), n: counts.done, icon: CheckCircle2 },
           ] as const
         ).map((c) => {
           const Icon = c.icon;
@@ -211,12 +196,7 @@ export default function ControlPage() {
                   : "border-slate-200 bg-white hover:border-slate-300"
               )}
             >
-              <Icon
-                className={cn(
-                  "h-5 w-5 shrink-0",
-                  filter === c.key ? "text-white/90" : "text-slate-400"
-                )}
-              />
+              <Icon className={cn("h-5 w-5 shrink-0", filter === c.key ? "text-white/90" : "text-slate-400")} />
               <div>
                 <div className="text-xs opacity-80">{c.label}</div>
                 <div className="text-xl font-semibold tabular-nums">{c.n}</div>
@@ -226,171 +206,105 @@ export default function ControlPage() {
         })}
       </div>
 
-      {msg && (
-        <div
-          className={cn(
-            "rounded-lg border px-4 py-3 text-sm",
-            err
-              ? "border-red-200 bg-red-50 text-red-800"
-              : "border-emerald-200 bg-emerald-50 text-emerald-900"
-          )}
-        >
-          {msg}
-        </div>
-      )}
-
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.15fr)]">
-        <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
-          <h2 className="mb-3 text-base font-semibold text-slate-900">
-            {isKy ? "Тизме" : "Список поручений"}
-          </h2>
-          {items.length === 0 ? (
-            <EmptyState
-              icon={ClipboardCheck}
-              title={isKy ? "Бош" : "Нет поручений"}
-              description={
-                isKy
-                  ? "Жеке кабыл алуудан кийин бул жерде пайда болот."
-                  : "После личного приёма обращения появятся здесь."
-              }
-              className="border-0 shadow-none"
-            />
-          ) : (
-            <ul className="max-h-[min(70vh,560px)] space-y-2 overflow-y-auto">
-              {items.map((a) => {
-                const overdue = isOverdue(a);
-                return (
-                  <li key={a.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedId(a.id);
-                        setMsg("");
-                        setAnswer("");
-                      }}
-                      className={cn(
-                        "w-full rounded-xl border px-3 py-3 text-left transition",
-                        selectedId === a.id
-                          ? "border-court-navy bg-slate-50 ring-1 ring-court-navy/20"
-                          : overdue
-                            ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50"
-                            : "border-slate-200 hover:bg-slate-50"
-                      )}
-                    >
-                      <div className="flex justify-between gap-2">
-                        <div className="font-mono text-xs text-slate-500">
-                          {a.code}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1">
-                          {overdue && (
-                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
-                              {isKy ? "Мөөнөт" : "Просрочка"}
-                            </span>
-                          )}
-                          <StageBadge stage={a.stage} />
-                        </div>
-                      </div>
-                      <div className="mt-0.5 font-semibold text-slate-900">
-                        {a.fullName}
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {a.assignment?.responsibleName || "—"} ·{" "}
-                        {isKy ? "мөөнөт" : "срок"}{" "}
-                        {a.assignment?.dueDate || "—"}
-                        {a.assignment?.status &&
-                          ` · ${a.assignment.status}`}
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
-          {!selected ? (
-            <p className="py-12 text-center text-sm text-slate-400">
-              {isKy
-                ? "Солдо поручение тандаңыз."
-                : "Выберите поручение слева."}
-            </p>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      {selected.code}
-                    </h2>
-                    <p className="text-sm text-slate-500">{selected.topic}</p>
-                  </div>
-                  <Link
-                    href={`/admin/appeals/${selected.id}`}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-court-blue hover:underline"
+      <section className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
+        {items.length === 0 ? (
+          <EmptyState
+            icon={ClipboardCheck}
+            title={L("Нет поручений", "Бош")}
+            description={L(
+              "После личного приёма или поручения обращения появятся здесь.",
+              "Жеке кабыл алуудан кийин бул жерде пайда болот."
+            )}
+            className="border-0 shadow-none"
+          />
+        ) : (
+          <ul className="max-h-[min(70vh,560px)] space-y-2 overflow-y-auto">
+            {items.map((a) => {
+              const overdue = isOverdue(a);
+              return (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    onClick={() => openItem(a.id)}
+                    className={cn(
+                      "w-full rounded-xl border px-3 py-3 text-left transition",
+                      overdue
+                        ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50"
+                        : "border-slate-200 hover:bg-slate-50"
+                    )}
                   >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    {isKy ? "Карточка" : "Полная карточка"}
-                  </Link>
-                </div>
-                <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-950">
-                  <strong>{isKy ? "Тапшырма:" : "Поручение:"}</strong>{" "}
-                  {selected.assignment?.text || "—"}
-                </div>
-                {selected.assignment && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(
-                      [
-                        "open",
-                        "in_progress",
-                        "done",
-                        "overdue",
-                      ] as const
-                    ).map((st) => (
-                      <button
-                        key={st}
-                        type="button"
-                        onClick={async () => {
-                          const res = await setAssignmentStatus(selected.id, st);
-                          if (res && "ok" in res && !res.ok) {
-                            setMsg(res.error);
-                            return;
-                          }
-                          setMsg(
-                            isKy
-                              ? `Статус: ${st}`
-                              : `Статус поручения: ${st}`
-                          );
-                        }}
-                        className={cn(
-                          "rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize",
-                          selected.assignment?.status === st
-                            ? "border-court-navy bg-court-navy text-white"
-                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    <div className="flex justify-between gap-2">
+                      <div className="font-mono text-xs text-slate-500">{a.code}</div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {overdue && (
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                            {L("Просрочка", "Мөөнөт")}
+                          </span>
                         )}
-                      >
-                        {st}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+                        <StageBadge stage={a.stage} />
+                      </div>
+                    </div>
+                    <div className="mt-0.5 font-semibold text-slate-900">{a.fullName}</div>
+                    <div className="text-xs text-slate-500">
+                      {a.assignment?.responsibleName || "—"} · {L("срок", "мөөнөт")}{" "}
+                      {a.assignment?.dueDate || "—"}
+                      {a.assignment?.status && ` · ${a.assignment.status}`}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
-              <Collapsible
-                title={isKy ? "Журнал аткаруу" : "Журнал исполнения"}
-                subtitle={isKy ? "Жаңы жазуу" : "Добавить ход работ"}
-                defaultOpen={selected.stage === "in_control"}
+      {selected && (
+        <Modal
+          title={selected.code}
+          subtitle={selected.topic}
+          onClose={() => setSelectedId("")}
+          className="max-w-2xl"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-950">
+                <strong>{L("Поручение:", "Тапшырма:")}</strong> {selected.assignment?.text || "—"}
+              </div>
+              <Link
+                href={`/admin/appeals/${selected.id}`}
+                className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-court-blue hover:underline"
               >
+                <ExternalLink className="h-3.5 w-3.5" />
+                {L("Карточка", "Карточка")}
+              </Link>
+            </div>
+
+            {msg && (
+              <div
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-sm",
+                  err
+                    ? "border-red-200 bg-red-50 text-red-800"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                )}
+              >
+                {msg}
+              </div>
+            )}
+
+            {readOnly ? (
+              <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                {L("Исполнитель", "Аткаруучу")}: {selected.assignment?.responsibleName || "—"} ·{" "}
+                {L("статус", "статус")}: {selected.assignment?.status || "—"}
+              </div>
+            ) : (
+              <>
                 <form onSubmit={onLog} className="space-y-3">
                   <label className="block space-y-1">
                     <span className="text-xs font-semibold text-slate-600">
-                      {isKy ? "Аракет" : "Действие"}
+                      {L("Действие", "Аракет")}
                     </span>
-                    <select
-                      className="input w-full"
-                      value={action}
-                      onChange={(e) => setAction(e.target.value)}
-                    >
+                    <select className="input w-full" value={action} onChange={(e) => setAction(e.target.value)}>
                       {ACTION_PRESETS.map((p) => (
                         <option key={p.ru} value={p.ru}>
                           {isKy ? p.ky : p.ru}
@@ -400,7 +314,7 @@ export default function ControlPage() {
                   </label>
                   <label className="block space-y-1">
                     <span className="text-xs font-semibold text-slate-600">
-                      {isKy ? "Комментарий" : "Комментарий / результат"}
+                      {L("Комментарий / результат", "Комментарий")}
                     </span>
                     <textarea
                       className="input min-h-[70px] w-full"
@@ -410,78 +324,56 @@ export default function ControlPage() {
                     />
                   </label>
                   <button type="submit" className="btn-outline !text-sm">
-                    {isKy ? "Журналга кошуу" : "Добавить в журнал"}
+                    {L("Добавить в журнал", "Журналга кошуу")}
                   </button>
                 </form>
-                {selected.controlLog.length > 0 && (
-                  <ul className="mt-4 max-h-36 space-y-2 overflow-y-auto text-xs">
-                    {selected.controlLog.map((c) => (
-                      <li
-                        key={c.id}
-                        className="rounded-lg bg-slate-50 px-3 py-2"
-                      >
-                        <strong>{c.action}</strong> — {c.comment}
-                        <div className="text-slate-400">
-                          {c.authorName} ·{" "}
-                          {new Date(c.at).toLocaleString("ru-RU")}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Collapsible>
 
-              {selected.stage === "in_control" && (
-                <Collapsible
-                  title={
-                    isKy
-                      ? "Жооп жаранга"
-                      : "Полный ответ гражданину"
-                  }
-                  subtitle={
-                    isKy
-                      ? "Жөнөтүлгөндөн кийин баалоо жеткиликтүү"
-                      : "После отправки доступна оценка сервиса"
-                  }
-                  defaultOpen
-                >
-                  <form onSubmit={onAnswer} className="space-y-3">
-                    <textarea
-                      className="input min-h-[120px] w-full"
-                      value={answer}
-                      onChange={(e) => setAnswer(e.target.value)}
-                      placeholder={
-                        isKy
-                          ? "Жооптун тексти…"
-                          : "Текст обоснованного ответа…"
-                      }
-                      required
-                    />
+                {selected.stage !== "closed" && (
+                  <form onSubmit={onAnswer} className="space-y-3 border-t border-slate-100 pt-4">
+                    <label className="block space-y-1">
+                      <span className="text-xs font-semibold text-slate-600">
+                        {L("Протокол исполнения", "Аткаруу протоколу")}
+                      </span>
+                      <textarea
+                        className="input min-h-[100px] w-full"
+                        value={answer}
+                        onChange={(e) => setAnswer(e.target.value)}
+                        placeholder={L("Текст протокола / обоснованного ответа…", "Протоколдун тексти…")}
+                        required
+                      />
+                    </label>
                     <button type="submit" className="btn-primary !text-sm">
-                      {isKy
-                        ? "Жооп жөнөтүү"
-                        : "Направить ответ и закрыть поручение"}
+                      {L("Сохранить протокол и завершить", "Протоколду сактап, аяктоо")}
                     </button>
                   </form>
-                </Collapsible>
-              )}
+                )}
+              </>
+            )}
 
-              {(selected.stage === "answered" ||
-                selected.stage === "closed") && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-                  {isKy ? "Жооп жөнөтүлдү." : "Ответ направлен."}{" "}
-                  <Link
-                    href={routes.evaluationByCode(selected.code)}
-                    className="font-semibold underline"
-                  >
-                    {routes.evaluationByCode(selected.code)}
-                  </Link>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-      </div>
+            {selected.controlLog.length > 0 && (
+              <ul className="max-h-36 space-y-2 overflow-y-auto border-t border-slate-100 pt-3 text-xs">
+                {selected.controlLog.map((c) => (
+                  <li key={c.id} className="rounded-lg bg-slate-50 px-3 py-2">
+                    <strong>{c.action}</strong> {c.comment && `— ${c.comment}`}
+                    <div className="text-slate-400">
+                      {c.authorName} · {new Date(c.at).toLocaleString("ru-RU")}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {selected.stage === "closed" && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                {L("Обращение завершено.", "Кайрылуу аяктады.")}{" "}
+                <Link href={routes.evaluationByCode(selected.code)} className="font-semibold underline">
+                  {routes.evaluationByCode(selected.code)}
+                </Link>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

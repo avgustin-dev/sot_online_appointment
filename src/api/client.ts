@@ -7,6 +7,7 @@ import type {
   AppealListQuery,
   Appointment,
   AppointmentListQuery,
+  AssignExecutorRequest,
   AvailableDatesResponse,
   BookAppointmentRequest,
   BookAppointmentResponse,
@@ -18,6 +19,7 @@ import type {
   ConfirmAppointmentRequest,
   EligibilityTreeNode,
   FeedbackRequest,
+  LeadershipScheduleRequest,
   LoginRequest,
   LoginResponse,
   PatchAppointmentRequest,
@@ -127,6 +129,8 @@ export const backend = {
         method: "POST",
         json: body,
       }),
+    assignAppeal: (id: string, body: AssignExecutorRequest) =>
+      api<AppealCard>(paths.staff.assign(id), { method: "POST", json: body }),
     addControlLog: (id: string, body: AddControlLogRequest) =>
       api<AppealCard>(paths.staff.control(id), { method: "POST", json: body }),
     setAssignmentStatus: (id: string, body: SetAssignmentStatusRequest) =>
@@ -144,6 +148,11 @@ export const backend = {
     getContent: () => api<ServiceContent>(paths.staff.content),
     putContent: (body: ServiceContent) =>
       api<ServiceContent>(paths.staff.content, { method: "PUT", json: body }),
+    patchLeadershipSchedule: (targetId: string, body: LeadershipScheduleRequest) =>
+      api<ServiceContent>(paths.staff.leadershipSchedule(targetId), {
+        method: "PATCH",
+        json: body,
+      }),
     getEligibility: () =>
       api<EligibilityTreePayload>(paths.staff.eligibility).then((r) => r.nodes),
     putEligibility: (body: EligibilityTreeNode[]) =>
