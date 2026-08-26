@@ -1,7 +1,9 @@
-import type { AppealCard, Appointment } from "./types";
+import type { AppealCard, Appointment, ServiceContent } from "./types";
 import { catalog } from "./catalog";
 import { average, normalizePhone } from "./utils";
 import { pickShell, type UiLang } from "./langCookie";
+import { targetPerson, targetShort } from "./targets";
+import type { ReportPeriod } from "./reportPeriods";
 
 type ReportInput = {
   appeals: AppealCard[];
@@ -10,6 +12,10 @@ type ReportInput = {
   subtitle?: string;
   orgName?: string;
   lang?: UiLang;
+  /** Для подписи ФИО/должности адресатов приёма в разделе «По адресатам». */
+  serviceContent?: ServiceContent | null;
+  /** Если передан — печатается в шапке отчёта и в имени файла. */
+  period?: ReportPeriod;
 };
 
 /**
@@ -57,6 +63,34 @@ export function downloadAppealsReport(input: ReportInput) {
     }, {})
   );
 
+  type TargetStat = { total: number; byStatus: Record<string, number> };
+  const byTarget = new Map<string, TargetStat>();
+  for (const apt of appointments) {
+    const rec: TargetStat = byTarget.get(apt.targetId) || { total: 0, byStatus: {} };
+    rec.total += 1;
+    rec.byStatus[apt.status] = (rec.byStatus[apt.status] || 0) + 1;
+    byTarget.set(apt.targetId, rec);
+  }
+  const targetRows = Array.from(byTarget.entries())
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([targetId, rec]) => {
+      const isKy = lang === "ky";
+      const person = targetPerson(targetId, isKy, input.serviceContent);
+      const name = person?.fullName || targetShort(targetId, isKy, input.serviceContent) || targetId;
+      const position = person?.position || "";
+      return `
+    <tr>
+      <td>${esc(name)}</td>
+      <td>${esc(position)}</td>
+      <td>${rec.total}</td>
+      <td>${rec.byStatus.confirmed || 0}</td>
+      <td>${rec.byStatus.accepted || 0}</td>
+      <td>${rec.byStatus.no_show || 0}</td>
+      <td>${rec.byStatus.cancelled || 0}</td>
+    </tr>`;
+    })
+    .join("");
+
   const rows = appeals
     .slice(0, 50)
     .map(
@@ -97,7 +131,13 @@ export function downloadAppealsReport(input: ReportInput) {
     <strong>${esc(L(pdf.popupHintRu, pdf.popupHintKy))}</strong>
   </p>
   <h1>${esc(title)}</h1>
-  <div class="meta">${esc(orgName)}<br/>${esc(subtitle)}<br/>${esc(L(pdf.generatedRu, pdf.generatedKy))}: ${esc(now)}</div>
+  <div class="meta">${esc(orgName)}<br/>${esc(subtitle)}<br/>${
+    input.period
+      ? `${esc(L(pdf.periodRu, pdf.periodKy))}: ${esc(
+          L(input.period.labelRu, input.period.labelKy)
+        )}<br/>`
+      : ""
+  }${esc(L(pdf.generatedRu, pdf.generatedKy))}: ${esc(now)}</div>
   <div class="kpis">
     <div class="kpi"><span>${esc(L("Обращений", "Кайрылуулар"))}</span><b>${appeals.length}</b></div>
     <div class="kpi"><span>${esc(L("Записей", "Жазылуулар"))}</span><b>${appointments.length}</b></div>
@@ -116,6 +156,19 @@ export function downloadAppealsReport(input: ReportInput) {
         )
         .join("")}
     </tbody>
+  </table>
+  <h2>${esc(L(pdf.byTargetRu, pdf.byTargetKy))}</h2>
+  <table>
+    <thead><tr>
+      <th>${esc(L(pdf.colTargetRu, pdf.colTargetKy))}</th>
+      <th>${esc(L(pdf.colPositionRu, pdf.colPositionKy))}</th>
+      <th>${esc(L(pdf.colTotalRu, pdf.colTotalKy))}</th>
+      <th>${esc(L(pdf.colConfirmedRu, pdf.colConfirmedKy))}</th>
+      <th>${esc(L(pdf.colAcceptedRu, pdf.colAcceptedKy))}</th>
+      <th>${esc(L(pdf.colNoShowRu, pdf.colNoShowKy))}</th>
+      <th>${esc(L(pdf.colCancelledRu, pdf.colCancelledKy))}</th>
+    </tr></thead>
+    <tbody>${targetRows || `<tr><td colspan='7'>${esc(L(pdf.noDataRu, pdf.noDataKy))}</td></tr>`}</tbody>
   </table>
   <h2>${esc(L(pdf.repeatedRu, pdf.repeatedKy))}</h2>
   ${
@@ -146,7 +199,11 @@ export function downloadAppealsReport(input: ReportInput) {
 </body>
 </html>`;
 
-  const w = window.open("", "_blank", "noopener,noreferrer,width=920,height=720");
+  // Важно: без "noopener"/"noreferrer" — с этими флагами window.open()
+  // возвращает null в современных браузерах, и записать HTML отчёта в
+  // окно невозможно (окно остаётся пустым). Отчёт — это динамический HTML
+  // без внешних ссылок, поэтому доп. изоляция здесь не нужна.
+  const w = window.open("", "_blank", "width=920,height=720");
   if (!w) {
     alert(L(pdf.popupHintRu, pdf.popupHintKy));
     return;

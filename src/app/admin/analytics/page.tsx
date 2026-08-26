@@ -2,15 +2,15 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { FileDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { average, normalizePhone } from "@/lib/utils";
 import type { AppealCard } from "@/lib/types";
-import { downloadAppealsReport } from "@/lib/pdfReport";
+import { targetShort } from "@/lib/targets";
 import { useI18n } from "@/lib/i18n";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Collapsible } from "@/components/ui/Collapsible";
 import { DonutChart, HBarChart } from "@/components/ui/SimpleCharts";
+import { ReportPanel } from "@/components/staff/ReportPanel";
 
 export default function AnalyticsPage() {
   const { state } = useStore();
@@ -18,14 +18,20 @@ export default function AnalyticsPage() {
   const isKy = lang === "ky";
   const appeals = state.appeals.filter((a) => a.stage !== "cancelled");
   const all = state.appeals;
+  const appointments = state.appointments;
+  const serviceContent = state.serviceContent;
 
   const stats = useMemo(() => {
     const byStage: Record<string, number> = {};
     const byCategory: Record<string, number> = {};
     const byTopic = new Map<string, number>();
+    const byTargetCount = new Map<string, number>();
 
     for (const a of all) {
       byStage[a.stage] = (byStage[a.stage] || 0) + 1;
+    }
+    for (const apt of appointments) {
+      byTargetCount.set(apt.targetId, (byTargetCount.get(apt.targetId) || 0) + 1);
     }
     for (const a of appeals) {
       byCategory[a.category] = (byCategory[a.category] || 0) + 1;
@@ -91,6 +97,14 @@ export default function AnalyticsPage() {
       value: v,
     }));
 
+    const targetItems = Array.from(byTargetCount.entries())
+      .map(([k, v]) => ({
+        key: k,
+        label: targetShort(k, isKy, serviceContent),
+        value: v,
+      }))
+      .sort((a, b) => b.value - a.value);
+
     const qualityItems = [
       { key: "r", label: isKy ? "Урмат" : "Уважение", value: quality.respectful || 0 },
       { key: "c", label: isKy ? "Айкындык" : "Ясность", value: quality.clearNextSteps || 0 },
@@ -107,9 +121,10 @@ export default function AnalyticsPage() {
       systemic,
       stageItems,
       catItems,
+      targetItems,
       qualityItems,
     };
-  }, [appeals, all, isKy, t]);
+  }, [appeals, all, appointments, isKy, t, serviceContent]);
 
   return (
     <div className="space-y-5">
@@ -119,33 +134,25 @@ export default function AnalyticsPage() {
           { label: t.crumbs.analytics },
         ]}
       />
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="section-title">{t.admin.analytics}</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            {isKy
-              ? "Кайталанма кайрылуулар, категориялар, сервистин сапаты. Жетекчилик үчүн."
-              : "Повторные обращения, категории, качество сервиса. Сведения для руководства."}
-          </p>
-        </div>
-        <button
-          type="button"
-          className="btn-primary !min-h-11 !text-sm"
-          onClick={() =>
-            downloadAppealsReport({
-              appeals: state.appeals,
-              appointments: state.appointments,
-              title: t.admin.reportTitle,
-              subtitle: t.admin.reportSubtitle,
-              orgName: t.orgName,
-              lang,
-            })
-          }
-        >
-          <FileDown className="h-4 w-4" />
-          {t.common.downloadPdf}
-        </button>
+      <div>
+        <h1 className="section-title">{t.admin.analytics}</h1>
+        <p className="mt-1 max-w-2xl text-sm text-slate-500">
+          {isKy
+            ? "Кайталанма кайрылуулар, категориялар, сервистин сапаты. Жетекчилик үчүн."
+            : "Повторные обращения, категории, качество сервиса. Сведения для руководства."}
+        </p>
       </div>
+
+      <ReportPanel
+        appeals={state.appeals}
+        appointments={state.appointments}
+        serviceContent={state.serviceContent}
+        isKy={isKy}
+        lang={lang === "ky" ? "ky" : "ru"}
+        orgName={t.orgName}
+        reportTitle={t.admin.reportTitle}
+        reportSubtitle={t.admin.reportSubtitle}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
@@ -195,6 +202,24 @@ export default function AnalyticsPage() {
           />
         </section>
       </div>
+
+      <section className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm">
+        <h2 className="mb-1 text-base font-semibold text-slate-900">
+          {isKy ? "Адресаттар боюнча" : "По адресатам приёма"}
+        </h2>
+        <p className="mb-4 text-xs text-slate-500">
+          {isKy
+            ? "Кимге канча жазылуу түшкөн (бардык мезгил)"
+            : "Сколько записей поступило на каждого адресата (за всё время)"}
+        </p>
+        {stats.targetItems.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            {isKy ? "Азырынча жазылуу жок." : "Записей пока нет."}
+          </p>
+        ) : (
+          <HBarChart items={stats.targetItems} />
+        )}
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Collapsible

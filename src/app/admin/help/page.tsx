@@ -3,15 +3,19 @@
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
+import { useStore } from "@/lib/store";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Collapsible } from "@/components/ui/Collapsible";
+import { FaqSection } from "@/components/staff/FaqSection";
 
 /**
  * Служебная инструкция: официальный стиль, без разговорных формулировок.
  */
 export default function AdminHelpPage() {
   const { t, lang } = useI18n();
+  const { currentUser } = useStore();
   const isKy = lang === "ky";
+  const faqDefaultRole = currentUser?.role ?? "reception";
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 page-enter">
@@ -64,7 +68,6 @@ export default function AdminHelpPage() {
             ? "1. Жарандын аракеттери"
             : "1. Действия гражданина"
         }
-        defaultOpen
       >
         <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-700">
           <li>
@@ -122,7 +125,6 @@ export default function AdminHelpPage() {
             ? "2. Каттоо коду жана PIN-код"
             : "2. Регистрационный код и PIN-код"
         }
-        defaultOpen
       >
         <div className="space-y-3 text-sm text-slate-700">
           <p className="font-medium text-slate-900">
@@ -212,7 +214,6 @@ export default function AdminHelpPage() {
             ? "3. Этаптар (кызматкер)"
             : "3. Этапы работы сотрудника"
         }
-        defaultOpen
       >
         <ol className="list-decimal space-y-3 pl-5 text-sm text-slate-700">
           <li>
@@ -322,7 +323,6 @@ export default function AdminHelpPage() {
             ? "4. Суроо-талап боюнча статус"
             : "4. Запрос гражданина о статусе"
         }
-        defaultOpen
       >
         <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-700">
           <li>
@@ -446,7 +446,6 @@ export default function AdminHelpPage() {
             ? "8. Эсептер жана укуктар"
             : "8. Учётные записи и права доступа"
         }
-        defaultOpen
       >
         <div className="space-y-4 text-sm text-slate-700">
           <p>
@@ -581,6 +580,8 @@ export default function AdminHelpPage() {
           </p>
         </div>
       </Collapsible>
+
+      <FaqSection isKy={isKy} defaultRole={faqDefaultRole} />
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
         <div className="font-semibold text-slate-900">

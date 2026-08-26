@@ -1,4 +1,4 @@
-import type { Appointment, Role, StaffUser } from "./types";
+import type { Appointment, AppointmentStatus, Role, StaffUser } from "./types";
 
 export type StaffActor = Pick<StaffUser, "id" | "role" | "targetId" | "fullName">;
 
@@ -66,6 +66,7 @@ const BY_ROLE: Record<Exclude<Role, "citizen">, Permission[]> = {
     "editStaffList",
     "prepCard",
     "viewJournal",
+    "viewAnalytics",
   ],
   leadership: [
     "rescheduleAppointment",
@@ -97,8 +98,8 @@ export const DEMO_ACCOUNTS = [
     login: "admin",
     password: "1111",
     role: "admin" as const,
-    labelRu: "Администратор (вся админка)",
-    labelKy: "Администратор (толук кабинет)",
+    labelRu: "Администратор",
+    labelKy: "Администратор",
   },
   {
     login: "spravochnaya",
@@ -171,6 +172,39 @@ export function appointmentVisibleTo(
   ].includes(apt.status);
 }
 
+/**
+ * Статусы записи, которые роль пользователя может установить вручную через
+ * форму «Статус записи» на карточке обращения — без «мёртвых» пунктов,
+ * которые выглядят выбираемыми, но на деле всегда отклоняются.
+ *
+ * "rescheduled" сюда никогда не входит: перенос выполняется отдельной формой
+ * («Перенести») и переводит запись в этот статус автоматически — прямая
+ * установка статуса «Перенесена» технически не предусмотрена.
+ *
+ * "pending_review" также не включён: для возврата записи «в поступившие»
+ * есть отдельное действие «Вернуть в ожидание» (staffRestoreAppointment),
+ * которое, в отличие от этой формы, согласованно возвращает и этап
+ * обращения на «Регистрация». Через универсальную форму статус менялся бы
+ * в отрыве от этапа — это и вызывало ощущение «сделал — и пропало».
+ */
+export function allowedManualStatuses(
+  user: StaffActor | null | undefined,
+  apt: Pick<Appointment, "targetId" | "status">
+): AppointmentStatus[] {
+  if (!user) return [];
+  if (!appointmentVisibleTo(user, apt) && !can(user, "viewAllAppointments")) {
+    return [];
+  }
+  const options: AppointmentStatus[] = [];
+  if (can(user, "confirmAppointment")) options.push("confirmed");
+  if (can(user, "rejectAppointment")) options.push("rejected");
+  if (can(user, "cancelAppointment")) options.push("cancelled", "no_show");
+  if (user.role === "admin" || can(user, "markAccepted")) {
+    options.push("accepted", "completed");
+  }
+  return Array.from(new Set(options));
+}
+
 export function canEditPersonSchedule(
   user: StaffActor | null | undefined,
   personId: string
@@ -179,47 +213,4 @@ export function canEditPersonSchedule(
   if (can(user, "editAllSchedules")) return true;
   if (!can(user, "editOwnSchedule")) return false;
   return ownTargetId(user) === personId;
-}
-
-const PATH_RULES: { prefix: string; anyOf: Permission[] }[] = [
-  { prefix: "/admin/inbox", anyOf: ["viewInbox"] },
-  { prefix: "/admin/content", anyOf: ["editContent", "editStaffList"] },
-  { prefix: "/admin/eligibility", anyOf: ["editEligibility"] },
-  { prefix: "/admin/analytics", anyOf: ["viewAnalytics"] },
-  { prefix: "/admin/control", anyOf: ["viewAssignments"] },
-  { prefix: "/admin/settings", anyOf: ["editAllSchedules", "editOwnSchedule"] },
-  { prefix: "/admin/journal", anyOf: ["viewJournal"] },
-  { prefix: "/admin/intake", anyOf: ["viewInbox"] },
-];
-
-export function canOpenPath(
-  user: StaffActor | null | undefined,
-  pathname: string
-): boolean {
-  if (!user) return false;
-  if (pathname === "/admin" || pathname === "/admin/help") return true;
-  if (pathname.startsWith("/admin/survey")) return user.role === "admin";
-  if (
-    pathname.startsWith("/admin/reception") ||
-    pathname.startsWith("/admin/calendar") ||
-    pathname.startsWith("/admin/appeals")
-  ) {
-    return can(user, "viewCard") || can(user, "viewAllAppointments");
-  }
-  const rule = PATH_RULES.find(
-    (r) => pathname === r.prefix || pathname.startsWith(r.prefix + "/")
-  );
-  if (!rule) return true;
-  return rule.anyOf.some((p) => can(user, p));
-}
-
-export function staffHomePath(
-  user: Pick<StaffActor, "role">,
-  hasPending = false
-): string {
-  if (user.role === "admin") return "/admin";
-  if (user.role === "responsible") return "/admin/control";
-  if (user.role === "leadership") return "/admin/reception";
-  if (user.role === "reception" && hasPending) return "/admin/inbox";
-  return "/admin";
 }

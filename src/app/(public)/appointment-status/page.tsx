@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { SlotPicker } from "@/components/booking/SlotPicker";
 import { VisitTicket } from "@/components/booking/VisitTicket";
@@ -48,26 +48,62 @@ export default function MyAppointmentPage() {
   const [slotStart, setSlotStart] = useState("");
   const [slotEnd, setSlotEnd] = useState("");
   const [remember, setRemember] = useState(true);
+  const autoLookupDone = useRef(false);
+  // Код/PIN, восстановленные из URL или localStorage при загрузке страницы —
+  // отдельно от полей формы, чтобы автопоиск ниже не срабатывал во время
+  // обычного ручного набора кода и PIN гражданином.
+  const restoredRef = useRef<{ code: string; pin: string } | null>(null);
 
   useEffect(() => {
     const fromUrl =
       typeof window !== "undefined"
         ? new URLSearchParams(window.location.search).get("code")
         : null;
+    let restoredCode = "";
+    let restoredPin = "";
     if (fromUrl) {
+      restoredCode = fromUrl.trim().toUpperCase();
       // eslint-disable-next-line react-hooks/set-state-in-effect -- код записи читаем из URL/localStorage только на клиенте
-      setCode(fromUrl.trim().toUpperCase());
+      setCode(restoredCode);
     }
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const data = JSON.parse(raw) as { code?: string; pin?: string };
-      if (!fromUrl && data.code) setCode(data.code);
-      if (data.pin) setPin(data.pin);
+      if (raw) {
+        const data = JSON.parse(raw) as { code?: string; pin?: string };
+        if (!fromUrl && data.code) {
+          restoredCode = data.code;
+          setCode(data.code);
+        }
+        if (data.pin) {
+          restoredPin = data.pin;
+          setPin(data.pin);
+        }
+      }
     } catch {
       /* ignore */
     }
+    restoredRef.current = { code: restoredCode, pin: restoredPin };
   }, []);
+
+  // Восстанавливаем открытую запись после обновления страницы (F5): код и
+  // PIN уже сохранены локально (см. эффект выше), поэтому не заставляем
+  // гражданина вводить их повторно — как только стор готов, ищем запись сами
+  // и сразу открываем карточку, если она нашлась. Используем именно
+  // restoredRef (а не live-состояние полей формы), чтобы это не срабатывало
+  // при обычном ручном вводе кода/PIN.
+  useEffect(() => {
+    if (!ready || autoLookupDone.current) return;
+    const restored = restoredRef.current;
+    if (!restored || !restored.code.trim() || !restored.pin.trim()) return;
+    autoLookupDone.current = true;
+    (async () => {
+      const found = await findAppointment(restored.code, restored.pin);
+      if (found) {
+        setApt(found);
+        setPanel("details");
+      }
+    })();
+  }, [ready, findAppointment]);
 
   if (!ready) {
     return <PageLoader label={t.common.loading} />;
@@ -372,6 +408,16 @@ export default function MyAppointmentPage() {
                   {apt.reviewNote ? ` ${apt.reviewNote}` : ""}
                 </div>
               )}
+              {apt.status !== "pending_review" &&
+                apt.status !== "rejected" &&
+                apt.reviewNote && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+                    <span className="font-semibold">
+                      {isKy ? "Ырастоо эскертмеси" : "Заметка при подтверждении"}:
+                    </span>{" "}
+                    {apt.reviewNote}
+                  </div>
+                )}
               <VisitTicket
                 code={apt.code}
                 pin={apt.pin}

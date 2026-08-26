@@ -16,6 +16,7 @@ import type { StaffProfile } from "./staff";
 import { toStaffProfile } from "./staff";
 import { generateCode, generateId, generatePin } from "./utils";
 import {
+  allowedManualStatuses,
   appointmentVisibleTo,
   can,
   DENIED,
@@ -512,23 +513,10 @@ export function wrapLocal(store: LocalStoreApi) {
       if (!apt) return { ok: false as const, error: "Заявка не найдена." };
       const u = actor(store, user);
       if (!u) return deny();
-      if (status === "cancelled" && !can(u, "cancelAppointment")) return deny();
-      if (status === "confirmed" && !can(u, "confirmAppointment")) return deny();
-      if (status === "rejected" && !can(u, "rejectAppointment")) return deny();
-      if (status === "pending_review" && !can(u, "confirmAppointment")) return deny();
-      if (status === "rescheduled") return deny();
-      if (status === "accepted" && u.role !== "admin" && !can(u, "markAccepted")) {
-        return deny();
-      }
-      if (status === "completed" && u.role !== "admin" && !can(u, "markAccepted")) {
-        return deny();
-      }
-      if (status === "no_show" && !can(u, "cancelAppointment") && u.role !== "admin") {
-        return deny();
-      }
-      if (!appointmentVisibleTo(u, apt) && !can(u, "viewAllAppointments")) {
-        return deny();
-      }
+      // staffRestoreAppointment — единственный корректный путь на "pending_review":
+      // он согласованно возвращает и этап обращения на "Регистрация".
+      if (status === "pending_review") return deny();
+      if (!allowedManualStatuses(u, apt).includes(status)) return deny();
       patchApt(store, apt.id, {
         status,
         history: [...apt.history, hist(u, statusLabel(status), note)],

@@ -76,7 +76,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
   const canMySchedule =
     (role === "admin" || role === "leadership" || role === "responsible") &&
     !!currentUser?.targetId;
-  const canAnalytics = role === "admin";
+  const canAnalytics = role === "admin" || role === "reception";
   const canContent = role === "admin" || role === "reception";
   const canSchedules = role === "admin" || role === "reception";
   const canEligibility = role === "admin";
@@ -210,11 +210,41 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
     [isKy]
   );
 
+  // Правило доступа к разделу по роли — тот же набор условий, что и для
+  // видимости пункта меню (canInbox/canReception/…). Раньше проверялся
+  // только факт входа, но не роль: сотрудник мог открыть скрытый в меню
+  // раздел прямым URL и увидеть данные, к которым не должен иметь доступ.
+  const routeGuards: { prefix: string; allowed: boolean }[] = [
+    { prefix: "/admin/inbox", allowed: canInbox },
+    { prefix: "/admin/reception", allowed: canReception },
+    { prefix: "/admin/calendar", allowed: canReception },
+    { prefix: "/admin/appeals", allowed: canJournal },
+    { prefix: "/admin/control", allowed: canControl },
+    { prefix: "/admin/protocols", allowed: canProtocols },
+    { prefix: "/admin/my-schedule", allowed: canMySchedule },
+    { prefix: "/admin/analytics", allowed: canAnalytics },
+    { prefix: "/admin/content", allowed: canContent },
+    { prefix: "/admin/eligibility", allowed: canEligibility },
+    { prefix: "/admin/settings", allowed: canSchedules },
+    { prefix: "/admin/journal", allowed: canViewJournal },
+    { prefix: "/admin/survey", allowed: canSurvey },
+  ];
+  const guardRule = routeGuards.find(
+    (r) => pathname === r.prefix || pathname.startsWith(r.prefix + "/")
+  );
+  const routeAllowed = !guardRule || guardRule.allowed;
+
   useEffect(() => {
     if (ready && !currentUser && pathname !== "/admin/login") {
       router.replace("/admin/login");
     }
   }, [ready, currentUser, pathname, router]);
+
+  useEffect(() => {
+    if (ready && currentUser && !routeAllowed) {
+      router.replace("/admin");
+    }
+  }, [ready, currentUser, routeAllowed, router]);
 
   if (!ready) {
     return (
@@ -230,7 +260,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!currentUser) {
+  if (!currentUser || !routeAllowed) {
     return (
       <div className="min-h-screen bg-[#f0f2f5]">
         <PageLoader

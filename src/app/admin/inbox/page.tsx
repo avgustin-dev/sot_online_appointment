@@ -14,6 +14,7 @@ import { SlotPicker } from "@/components/booking/SlotPicker";
 import { formatDateRu, weekdayRu } from "@/lib/slots";
 import { targetShort } from "@/lib/targets";
 import { useI18n } from "@/lib/i18n";
+import { ReportPanel } from "@/components/staff/ReportPanel";
 import type { Appointment } from "@/lib/types";
 
 const FINAL_STATUSES = new Set(["cancelled", "rejected", "completed", "accepted"]);
@@ -108,6 +109,17 @@ export default function InboxPage() {
             ? "Журнал. Сапты басыңыз — чечим."
             : "Журнал записей. Нажмите строку — откроется решение."
         }
+      />
+
+      <ReportPanel
+        appeals={state.appeals}
+        appointments={state.appointments}
+        serviceContent={state.serviceContent}
+        isKy={isKy}
+        lang={lang === "ky" ? "ky" : "ru"}
+        orgName={t.orgName}
+        reportTitle={t.admin.reportTitle}
+        reportSubtitle={t.admin.reportSubtitle}
       />
 
       {flash && !openId && (

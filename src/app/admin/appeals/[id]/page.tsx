@@ -25,6 +25,7 @@ import { ReviewRequestPanel } from "@/components/staff/ReviewRequestPanel";
 import { targetPerson, targetShort } from "@/lib/targets";
 import { SlotPicker } from "@/components/booking/SlotPicker";
 import { assignmentStatusLabel } from "@/lib/assignment";
+import { allowedManualStatuses, can } from "@/lib/acl";
 
 export default function AppealDetailPage() {
   const params = useParams();
@@ -53,6 +54,10 @@ export default function AppealDetailPage() {
   const previous = useMemo(
     () => (appeal ? getPreviousAppeals(appeal) : []),
     [appeal, getPreviousAppeals]
+  );
+  const manualStatusOptions = useMemo(
+    () => (appointment ? allowedManualStatuses(currentUser, appointment) : []),
+    [currentUser, appointment]
   );
 
   const [summary, setSummary] = useState("");
@@ -119,11 +124,17 @@ export default function AppealDetailPage() {
   const canManage =
     !!currentUser &&
     ["reception", "admin", "leadership"].includes(currentUser.role);
+  const statusSelectValue: AppointmentStatus | "" = manualStatusOptions.includes(
+    statusSelect
+  )
+    ? statusSelect
+    : manualStatusOptions[0] || "";
   const canAssign =
     !!currentUser &&
     (currentUser.role === "leadership" || currentUser.role === "admin");
+  const canChangeStage = can(currentUser, "prepCard");
   const canPrep =
-    canManage &&
+    canChangeStage &&
     ["registered", "under_review"].includes(appeal.stage) &&
     appointment?.status !== "pending_review" &&
     appointment?.status !== "rejected";
@@ -205,16 +216,16 @@ export default function AppealDetailPage() {
 
   async function onStatus(e: React.FormEvent) {
     e.preventDefault();
-    if (!currentUser || !appointment) return;
+    if (!currentUser || !appointment || !statusSelectValue) return;
     const res = await staffSetAppointmentStatus(
       appointment.id,
-      statusSelect,
+      statusSelectValue,
       currentUser
     );
     flash(
       res.ok,
       res.ok
-        ? `${isKy ? "Жазылуу статусу" : "Статус записи"}: ${t.statuses[statusSelect]}`
+        ? `${isKy ? "Жазылуу статусу" : "Статус записи"}: ${t.statuses[statusSelectValue]}`
         : res.error
     );
   }
@@ -402,6 +413,12 @@ export default function AppealDetailPage() {
               )}
             </div>
           </div>
+          {appointment.reviewNote && (
+            <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
+              Заметка при подтверждении/отказе (видна гражданину в «Моей записи»):{" "}
+              {appointment.reviewNote}
+            </p>
+          )}
           {appointment.previousDate && (
             <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
               Прежние дата и время приёма сохраняются при переносе:{" "}
@@ -683,63 +700,75 @@ export default function AppealDetailPage() {
                   </button>
                 </form>
 
-                <form
-                  onSubmit={onStatus}
-                  className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4"
-                >
-                  <label className="block min-w-[180px] flex-1 space-y-1">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Статус записи
-                    </span>
-                    <select
-                      className="input w-full"
-                      value={statusSelect}
-                      onChange={(e) =>
-                        setStatusSelect(e.target.value as AppointmentStatus)
-                      }
-                    >
-                      {(
-                        Object.keys(t.statuses) as AppointmentStatus[]
-                      ).map((k) => (
-                        <option key={k} value={k}>
-                          {t.statuses[k]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button type="submit" className="btn-outline !text-sm">
-                    Применить статус
-                  </button>
-                </form>
-
-                <form
-                  onSubmit={onStage}
-                  className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4"
-                >
-                  <label className="block min-w-[220px] flex-1 space-y-1">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Этап обращения
-                    </span>
-                    <select
-                      className="input w-full"
-                      value={stageSelect}
-                      onChange={(e) =>
-                        setStageSelect(e.target.value as AppealStage)
-                      }
-                    >
-                      {(Object.keys(t.stages) as AppealStage[]).map(
-                        (k) => (
+                {manualStatusOptions.length > 0 ? (
+                  <form
+                    onSubmit={onStatus}
+                    className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4"
+                  >
+                    <label className="block min-w-[180px] flex-1 space-y-1">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Статус записи
+                      </span>
+                      <select
+                        className="input w-full"
+                        value={statusSelectValue}
+                        onChange={(e) =>
+                          setStatusSelect(e.target.value as AppointmentStatus)
+                        }
+                      >
+                        {manualStatusOptions.map((k) => (
                           <option key={k} value={k}>
-                            {t.stages[k]}
+                            {t.statuses[k]}
                           </option>
-                        )
-                      )}
-                    </select>
-                  </label>
-                  <button type="submit" className="btn-outline !text-sm">
-                    Сменить этап
-                  </button>
-                </form>
+                        ))}
+                      </select>
+                    </label>
+                    <button type="submit" className="btn-outline !text-sm">
+                      Применить статус
+                    </button>
+                  </form>
+                ) : (
+                  <p className="border-t border-slate-100 pt-4 text-xs text-slate-400">
+                    Нет статусов, доступных для смены вашей ролью на этом этапе.
+                    Перенос записи — форма выше.
+                  </p>
+                )}
+
+                {canChangeStage ? (
+                  <form
+                    onSubmit={onStage}
+                    className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4"
+                  >
+                    <label className="block min-w-[220px] flex-1 space-y-1">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Этап обращения
+                      </span>
+                      <select
+                        className="input w-full"
+                        value={stageSelect}
+                        onChange={(e) =>
+                          setStageSelect(e.target.value as AppealStage)
+                        }
+                      >
+                        {(Object.keys(t.stages) as AppealStage[]).map(
+                          (k) => (
+                            <option key={k} value={k}>
+                              {t.stages[k]}
+                            </option>
+                          )
+                        )}
+                      </select>
+                    </label>
+                    <button type="submit" className="btn-outline !text-sm">
+                      Сменить этап
+                    </button>
+                  </form>
+                ) : (
+                  <p className="border-t border-slate-100 pt-4 text-xs text-slate-400">
+                    Смена этапа обращения доступна отделу по работе с
+                    гражданами и администратору.
+                  </p>
+                )}
               </div>
             </Collapsible>
           )}
