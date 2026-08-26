@@ -173,19 +173,11 @@ export function appointmentVisibleTo(
 }
 
 /**
- * Статусы записи, которые роль пользователя может установить вручную через
- * форму «Статус записи» на карточке обращения — без «мёртвых» пунктов,
- * которые выглядят выбираемыми, но на деле всегда отклоняются.
+ * Статусы записи по ТЗ §5 (в порядке жизненного цикла):
+ * Поступила → Подтверждена → Перенесена → Отменена → Принята → Завершена.
  *
- * "rescheduled" сюда никогда не входит: перенос выполняется отдельной формой
- * («Перенести») и переводит запись в этот статус автоматически — прямая
- * установка статуса «Перенесена» технически не предусмотрена.
- *
- * "pending_review" также не включён: для возврата записи «в поступившие»
- * есть отдельное действие «Вернуть в ожидание» (staffRestoreAppointment),
- * которое, в отличие от этой формы, согласованно возвращает и этап
- * обращения на «Регистрация». Через универсальную форму статус менялся бы
- * в отрыве от этапа — это и вызывало ощущение «сделал — и пропало».
+ * «Перенесена» также выставляется формой переноса даты/времени
+ * (с сохранением прежних даты и слота).
  */
 export function allowedManualStatuses(
   user: StaffActor | null | undefined,
@@ -196,13 +188,28 @@ export function allowedManualStatuses(
     return [];
   }
   const options: AppointmentStatus[] = [];
+  // Поступила — возврат на рассмотрение (регистратор / админ)
+  if (can(user, "confirmAppointment") || can(user, "cancelAppointment")) {
+    options.push("pending_review");
+  }
   if (can(user, "confirmAppointment")) options.push("confirmed");
-  if (can(user, "rejectAppointment")) options.push("rejected");
-  if (can(user, "cancelAppointment")) options.push("cancelled", "no_show");
+  if (can(user, "rescheduleAppointment")) options.push("rescheduled");
+  if (can(user, "cancelAppointment") || can(user, "rejectAppointment")) {
+    options.push("cancelled");
+  }
   if (user.role === "admin" || can(user, "markAccepted")) {
     options.push("accepted", "completed");
   }
-  return Array.from(new Set(options));
+  // Уникальные, в порядке ТЗ
+  const order: AppointmentStatus[] = [
+    "pending_review",
+    "confirmed",
+    "rescheduled",
+    "cancelled",
+    "accepted",
+    "completed",
+  ];
+  return order.filter((s) => options.includes(s));
 }
 
 export function canEditPersonSchedule(

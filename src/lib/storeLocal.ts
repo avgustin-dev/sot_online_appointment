@@ -513,14 +513,15 @@ export function wrapLocal(store: LocalStoreApi) {
       }
       const apt = store.getState().appointments.find((a) => a.id === appointmentId);
       if (!apt) return { ok: false as const, error: "Заявка не найдена." };
+      // По ТЗ §5 отдельного статуса «отказ» нет — отказ оформляется как отмена.
       patchApt(store, apt.id, {
-        status: "rejected",
+        status: "cancelled",
         reviewNote: reason,
-        history: [...apt.history, hist(u, "Не подтверждена", reason)],
+        history: [...apt.history, hist(u, "Отменена", reason)],
       });
       const apl = appealOfApt(store, apt.id);
       if (apl) patchApl(store, apl.id, { stage: "cancelled" });
-      pushLog(store, u, "Отказ в записи", "appointment", apt.id, apt.code);
+      pushLog(store, u, "Отмена заявки (отказ)", "appointment", apt.id, apt.code);
       return { ok: true as const };
     },
 
@@ -571,14 +572,31 @@ export function wrapLocal(store: LocalStoreApi) {
       if (!apt) return { ok: false as const, error: "Заявка не найдена." };
       const u = actor(store, user);
       if (!u) return deny();
-      // staffRestoreAppointment — единственный корректный путь на "pending_review":
-      // он согласованно возвращает и этап обращения на "Регистрация".
-      if (status === "pending_review") return deny();
+      // Устаревшие статусы вне ТЗ §5 — через форму не выставляем.
+      if (status === "rejected" || status === "no_show") return deny();
       if (!allowedManualStatuses(u, apt).includes(status)) return deny();
-      patchApt(store, apt.id, {
+
+      const patch: Partial<Appointment> = {
         status,
         history: [...apt.history, hist(u, statusLabel(status), note)],
-      });
+      };
+      // ТЗ §5: при переносе сохранять прежние дату и время.
+      if (status === "rescheduled" && !apt.previousDate) {
+        patch.previousDate = apt.date;
+        patch.previousSlotStart = apt.slotStart;
+        patch.previousSlotEnd = apt.slotEnd;
+      }
+      patchApt(store, apt.id, patch);
+
+      const apl = appealOfApt(store, apt.id);
+      if (apl) {
+        if (status === "pending_review") {
+          patchApl(store, apl.id, { stage: "registered" });
+        } else if (status === "cancelled") {
+          patchApl(store, apl.id, { stage: "cancelled" });
+        }
+      }
+
       pushLog(
         store,
         u,
@@ -1066,8 +1084,9 @@ function statusLabel(status: AppointmentStatus): string {
     rescheduled: "Перенесена",
     cancelled: "Отменена",
     completed: "Завершена",
-    rejected: "Не подтверждена",
-    no_show: "Неявка",
+    // Устаревшие ключи (не в ТЗ §5) — отображаем как отмену
+    rejected: "Отменена",
+    no_show: "Отменена",
   };
   return map[status] ?? status;
 }

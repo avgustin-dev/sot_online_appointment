@@ -21,9 +21,9 @@ const statusTone: Record<AppointmentStatus, string> = {
   accepted: "border-teal-300 bg-teal-50 text-teal-950",
   rescheduled: "border-amber-300 bg-amber-50 text-amber-950",
   cancelled: "border-red-300 bg-red-50 text-red-900",
-  rejected: "border-slate-300 bg-slate-100 text-slate-700",
+  rejected: "border-red-300 bg-red-50 text-red-900",
   completed: "border-slate-300 bg-slate-100 text-slate-700",
-  no_show: "border-orange-300 bg-orange-50 text-orange-950",
+  no_show: "border-red-300 bg-red-50 text-red-900",
 };
 
 export function StageBadge({ stage }: { stage: AppealStage }) {

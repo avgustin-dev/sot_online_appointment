@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { StageBadge } from "@/components/ui/Badge";
 import { formatDateRu } from "@/lib/slots";
@@ -22,6 +23,7 @@ import {
 
 export default function ReceptionPage() {
   const { state, currentUser, completeReception } = useStore();
+  const router = useRouter();
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
   const [selectedId, setSelectedId] = useState<string>("");
@@ -157,19 +159,33 @@ export default function ReceptionPage() {
     setSpecialistsInvolved("");
   }
 
-  function renderQueueSection(label: string, items: typeof queue) {
+  function renderQueueSection(
+    label: string,
+    hint: string,
+    items: typeof queue,
+    mode: "prep" | "protocol"
+  ) {
     if (items.length === 0) return null;
     return (
       <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-          {label} ({items.length})
-        </p>
+        <div className="mb-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            {label} ({items.length})
+          </p>
+          <p className="text-xs text-slate-500">{hint}</p>
+        </div>
         <ul className="space-y-2">
           {items.map(({ appeal, apt }) => (
             <li key={appeal.id}>
               <button
                 type="button"
-                onClick={() => openItem(appeal.id)}
+                onClick={() => {
+                  if (mode === "prep") {
+                    router.push(`/admin/appeals/${appeal.id}`);
+                    return;
+                  }
+                  openItem(appeal.id);
+                }}
                 className="w-full rounded-xl border border-court-line px-3 py-3 text-left transition hover:bg-court-mist"
               >
                 <div className="flex items-start justify-between gap-2">
@@ -192,6 +208,15 @@ export default function ReceptionPage() {
                     {formatDateRu(apt.date)} · {apt.slotStart}–{apt.slotEnd}
                   </div>
                 )}
+                <div className="mt-2 text-[11px] font-medium text-slate-500">
+                  {mode === "prep"
+                    ? isKy
+                      ? "Карточканы ачуу →"
+                      : "Открыть карточку →"
+                    : isKy
+                      ? "Протоколду толтуруу →"
+                      : "Заполнить протокол →"}
+                </div>
               </button>
             </li>
           ))}
@@ -320,8 +345,22 @@ export default function ReceptionPage() {
           />
         ) : (
           <div className="space-y-4">
-            {renderQueueSection(isKy ? "Даярдоо" : "Подготовка", prepQueue)}
-            {renderQueueSection(isKy ? "Протокол" : "К протоколу", liveQueue)}
+            {renderQueueSection(
+              isKy ? "Даярдоо" : "Подготовка",
+              isKy
+                ? "Справочная карточканы толтурат. Сапты тандаңыз — карточка ачылат."
+                : "Справочная служба готовит карточку. Выберите строку для открытия карточки обращения.",
+              prepQueue,
+              "prep"
+            )}
+            {renderQueueSection(
+              isKy ? "К протоколу" : "К протоколу",
+              isKy
+                ? "Карточка даяр. Жетекчилик кабыл алуунун протоколун жана тапшырманы толтурат."
+                : "Карточка готова. Руководство фиксирует протокол приёма и поручение.",
+              liveQueue,
+              "protocol"
+            )}
           </div>
         )}
       </section>

@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { FileDown, GripVertical } from "lucide-react";
-import { downloadAppealsReport } from "@/lib/pdfReport";
+import { ChevronDown, FileDown, GripVertical } from "lucide-react";
+import {
+  downloadAppealsReport,
+  type ReportKind,
+} from "@/lib/pdfReport";
 import {
   allPeriod,
   customPeriod,
@@ -27,6 +30,36 @@ const PRESET_LABEL: Record<Preset, { ru: string; ky: string }> = {
   custom: { ru: "Период…", ky: "Мезгил…" },
 };
 
+const REPORT_KINDS: {
+  id: ReportKind;
+  ru: string;
+  ky: string;
+  hintRu: string;
+  hintKy: string;
+}[] = [
+  {
+    id: "summary",
+    ru: "Сводка",
+    ky: "Жыйынтык",
+    hintRu: "Показатели, этапы и адресаты (1 стр.)",
+    hintKy: "Көрсөткүчтөр, этаптар жана адресаттар",
+  },
+  {
+    id: "registry",
+    ru: "Реестр",
+    ky: "Реестр",
+    hintRu: "Список обращений за период",
+    hintKy: "Мезгилдеги кайрылуулардын тизмеси",
+  },
+  {
+    id: "full",
+    ru: "Полный отчёт",
+    ky: "Толук отчёт",
+    hintRu: "Сводка и реестр вместе",
+    hintKy: "Жыйынтык жана реестр",
+  },
+];
+
 const MONTH_OPTIONS_RU = [
   "Январь",
   "Февраль",
@@ -47,8 +80,7 @@ const CURRENT_YEAR = now.getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
 
 /**
- * Панель периода + «Отчёт (PDF)».
- * filters — категории в выдвижном меню (кнопка из трёх вертикальных полос).
+ * Панель периода + меню отчётов PDF (сводка / реестр / полный).
  */
 export function ReportPanel({
   appeals,
@@ -86,7 +118,9 @@ export function ReportPanel({
   const [customFrom, setCustomFrom] = useState(todayIso());
   const [customTo, setCustomTo] = useState(todayIso());
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const filtersRef = useRef<HTMLDivElement>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
 
   const period: ReportPeriod = useMemo(() => {
     if (preset === "all") return allPeriod();
@@ -102,17 +136,21 @@ export function ReportPanel({
   }, [period]);
 
   useEffect(() => {
-    if (!filtersOpen) return;
+    if (!filtersOpen && !reportOpen) return;
     function onDoc(e: MouseEvent) {
-      if (
-        filtersRef.current &&
-        !filtersRef.current.contains(e.target as Node)
-      ) {
+      const t = e.target as Node;
+      if (filtersOpen && filtersRef.current && !filtersRef.current.contains(t)) {
         setFiltersOpen(false);
+      }
+      if (reportOpen && reportRef.current && !reportRef.current.contains(t)) {
+        setReportOpen(false);
       }
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setFiltersOpen(false);
+      if (e.key === "Escape") {
+        setFiltersOpen(false);
+        setReportOpen(false);
+      }
     }
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
@@ -120,14 +158,15 @@ export function ReportPanel({
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
     };
-  }, [filtersOpen]);
+  }, [filtersOpen, reportOpen]);
 
   const inPeriodCount = useMemo(
     () => filterByPeriod(appointments, period).length,
     [appointments, period]
   );
 
-  function onDownload() {
+  function printReport(kind: ReportKind) {
+    setReportOpen(false);
     const periodAppointments = filterByPeriod(appointments, period);
     const ids = new Set(periodAppointments.map((a) => a.id));
     const periodAppeals = appeals.filter((a) => ids.has(a.appointmentId));
@@ -140,6 +179,7 @@ export function ReportPanel({
       subtitle: reportSubtitle,
       orgName,
       lang,
+      kind,
     });
   }
 
@@ -169,7 +209,10 @@ export function ReportPanel({
           <div className="relative" ref={filtersRef}>
             <button
               type="button"
-              onClick={() => setFiltersOpen((v) => !v)}
+              onClick={() => {
+                setFiltersOpen((v) => !v);
+                setReportOpen(false);
+              }}
               className={cn(
                 "inline-flex h-9 w-9 items-center justify-center rounded-lg border transition",
                 filtersOpen
@@ -290,14 +333,48 @@ export function ReportPanel({
 
         {search}
 
-        <button
-          type="button"
-          onClick={onDownload}
-          className="btn-primary !min-h-10 shrink-0 !text-sm"
-        >
-          <FileDown className="h-4 w-4" />
-          {isKy ? "Отчёт (PDF)" : "Отчёт (PDF)"}
-        </button>
+        <div className="relative shrink-0" ref={reportRef}>
+          <button
+            type="button"
+            onClick={() => {
+              setReportOpen((v) => !v);
+              setFiltersOpen(false);
+            }}
+            className="btn-primary !min-h-10 !text-sm"
+            aria-expanded={reportOpen}
+            aria-haspopup="menu"
+          >
+            <FileDown className="h-4 w-4" />
+            {isKy ? "Отчёт (PDF)" : "Отчёт (PDF)"}
+            <ChevronDown className="h-3.5 w-3.5 opacity-80" aria-hidden />
+          </button>
+          {reportOpen ? (
+            <div
+              role="menu"
+              className="absolute right-0 top-[calc(100%+6px)] z-40 w-72 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg"
+            >
+              <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                {isKy ? "Түрүн тандаңыз" : "Выберите вид отчёта"}
+              </div>
+              {REPORT_KINDS.map((k) => (
+                <button
+                  key={k.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => printReport(k.id)}
+                  className="flex w-full flex-col rounded-lg px-3 py-2.5 text-left transition hover:bg-slate-50"
+                >
+                  <span className="text-sm font-semibold text-slate-900">
+                    {isKy ? k.ky : k.ru}
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    {isKy ? k.hintKy : k.hintRu}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

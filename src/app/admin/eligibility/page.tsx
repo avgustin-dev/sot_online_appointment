@@ -456,7 +456,7 @@ export default function EligibilityCmsPage() {
                           ? node.allowed
                             ? isKy
                               ? "Допуск · жазылуу"
-                              : "Допуск · можно записаться"
+                              : "Допуск · запись разрешена"
                             : isKy
                               ? "Баш тартуу"
                               : "Отказ"

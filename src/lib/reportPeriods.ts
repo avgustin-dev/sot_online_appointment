@@ -16,13 +16,15 @@ function toIso(d: Date): string {
 }
 
 function toRu(d: Date): string {
-  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
+  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${String(
+    d.getFullYear()
+  ).slice(2)}`;
 }
 
 export function isoToRu(iso: string): string {
   const [y, m, d] = iso.split("-");
   if (!y || !m || !d) return iso;
-  return `${d}.${m}.${y}`;
+  return `${d}.${m}.${y.slice(2)}`;
 }
 
 export function todayIso(): string {

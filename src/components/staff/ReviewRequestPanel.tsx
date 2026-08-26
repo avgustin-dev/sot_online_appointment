@@ -9,9 +9,7 @@ import type { Appointment } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
- * Подтверждение / отказ по заявке гражданина.
- * Крупные кнопки и обязательная причина отказа — чтобы сотрудник
- * не гадал, что нажимать.
+ * Подтверждение или отмена поступившей заявки (ТЗ §5).
  */
 export function ReviewRequestPanel({
   appointment,
@@ -82,8 +80,8 @@ export function ReviewRequestPanel({
       res.ok,
       res.ok
         ? isKy
-          ? "Заявка ырасталган жок. Себеби жаранга жөнөтүлдү."
-          : "В записи отказано. Причина направлена заявителю."
+          ? "Жазылуу жокко чыгарылды. Себеби жаранга жөнөтүлдү."
+          : "Запись отменена. Причина направлена заявителю."
         : res.error
     );
   }
@@ -134,7 +132,7 @@ export function ReviewRequestPanel({
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder={
-            isKy ? "Мисалы: тема ылайыктуу" : "Например: тема в компетенции"
+            isKy ? "Мисалы: тема компетенцияга кирет" : "Пример: тема относится к компетенции приёма"
           }
         />
       </label>
@@ -142,8 +140,8 @@ export function ReviewRequestPanel({
       <label className="mt-3 block">
         <span className="text-xs font-medium text-slate-600">
           {isKy
-            ? "Баш тартуунун себеби (баш тартсаңыз — милдеттүү)"
-            : "Причина отказа (обязательна, если не подтверждаете)"}
+            ? "Жокко чыгаруунун себеби (жокко чыгарсаңыз — милдеттүү)"
+            : "Причина отмены (обязательна при отмене заявки)"}
         </span>
         <textarea
           className="input mt-1 min-h-[72px] w-full bg-white"
@@ -152,7 +150,7 @@ export function ReviewRequestPanel({
           placeholder={
             isKy
               ? "Мисалы: кайрылуу конкреттүү сот иши жөнүндө"
-              : "Например: обращение касается конкретного судебного дела"
+              : "Пример: обращение касается конкретного судебного дела"
           }
         />
       </label>
@@ -174,7 +172,7 @@ export function ReviewRequestPanel({
           className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:opacity-60"
         >
           <XCircle className="h-5 w-5" />
-          {isKy ? "Баш тартуу" : "Отказать в записи"}
+          {isKy ? "Жокко чыгаруу" : "Отменить заявку"}
         </button>
       </div>
 

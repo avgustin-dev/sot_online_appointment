@@ -6,7 +6,6 @@ import {
   Ban,
   CheckCircle2,
   RotateCcw,
-  UserX,
   ExternalLink,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -26,7 +25,7 @@ import { targetShort } from "@/lib/targets";
 
 /**
  * Календарь для сотрудников: список записей по дням (не «пустые слоты»).
- * Свободные окна — краткая сводка. Действия: открыть, отменить, неявка, вернуть.
+ * Свободные окна — краткая сводка. Действия: открыть, отменить, вернуть.
  */
 export default function StaffCalendarPage() {
   const {
@@ -34,7 +33,6 @@ export default function StaffCalendarPage() {
     currentUser,
     staffCancelAppointment,
     staffRestoreAppointment,
-    staffSetAppointmentStatus,
   } = useStore();
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
@@ -106,8 +104,8 @@ export default function StaffCalendarPage() {
         title={isKy ? "Кабыл алуу" : "Приём"}
         lead={
           isKy
-            ? "Күн боюнча тизме. Өтүнмө — ырастоо. Неявка — кабыл алуу күнү."
-            : "Список по дням. Заявка подлежит подтверждению. Неявку отмечают в день приёма."
+            ? "Күн боюнча тизме. Өтүнмө — ырастоо же жокко чыгаруу."
+            : "Список по дням. Заявка — подтверждение или отмена."
         }
       />
       <ReceptionTabs isKy={isKy} />
@@ -267,60 +265,40 @@ export default function StaffCalendarPage() {
                         apt.status !== "accepted" &&
                         apt.status !== "completed" &&
                         apt.status !== "pending_review" &&
-                        apt.status !== "rejected" && (
-                          <>
-                            <button
-                              type="button"
-                              title={isKy ? "Келген жок" : "Неявка"}
-                              className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
-                              onClick={() =>
-                                currentUser &&
-                                run(
-                                  () =>
-                                    staffSetAppointmentStatus(
-                                      apt.id,
-                                      "no_show",
-                                      currentUser
-                                    ),
-                                  isKy ? "Неявка белгиленди" : "Отмечена неявка"
+                        apt.status !== "rejected" &&
+                        apt.status !== "no_show" && (
+                          <button
+                            type="button"
+                            title={isKy ? "Жокко чыгаруу" : "Отменить"}
+                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100"
+                            onClick={() => {
+                              if (
+                                !currentUser ||
+                                !confirm(
+                                  isKy
+                                    ? "Жазылууну жокко чыгарасызбы?"
+                                    : "Отменить эту запись?"
                                 )
-                              }
-                            >
-                              <UserX className="h-3.5 w-3.5" />
-                              {isKy ? "Неявка" : "Неявка"}
-                            </button>
-                            <button
-                              type="button"
-                              title={isKy ? "Жокко чыгаруу" : "Отменить"}
-                              className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100"
-                              onClick={() => {
-                                if (
-                                  !currentUser ||
-                                  !confirm(
-                                    isKy
-                                      ? "Жазылууну жокко чыгарасызбы?"
-                                      : "Отменить эту запись?"
-                                  )
-                                )
-                                  return;
-                                run(
-                                  () =>
-                                    staffCancelAppointment(
-                                      apt.id,
-                                      currentUser
-                                    ),
-                                  isKy ? "Жокко чыгарылды" : "Запись отменена"
-                                );
-                              }}
-                            >
-                              <Ban className="h-3.5 w-3.5" />
-                              {isKy ? "Жокко" : "Отмена"}
-                            </button>
-                          </>
+                              )
+                                return;
+                              run(
+                                () =>
+                                  staffCancelAppointment(
+                                    apt.id,
+                                    currentUser
+                                  ),
+                                isKy ? "Жокко чыгарылды" : "Запись отменена"
+                              );
+                            }}
+                          >
+                            <Ban className="h-3.5 w-3.5" />
+                            {isKy ? "Жокко" : "Отмена"}
+                          </button>
                         )}
                       {canAct() &&
                         (apt.status === "cancelled" ||
-                          apt.status === "no_show") && (
+                          apt.status === "no_show" ||
+                          apt.status === "rejected") && (
                           <button
                             type="button"
                             className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
@@ -342,28 +320,6 @@ export default function StaffCalendarPage() {
                             {isKy ? "Кайтаруу" : "Вернуть"}
                           </button>
                         )}
-                      {canAct() && apt.status === "no_show" && (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                          onClick={() =>
-                            currentUser &&
-                            run(
-                              () =>
-                                staffSetAppointmentStatus(
-                                  apt.id,
-                                  "confirmed",
-                                  currentUser,
-                                  "Снова в ожидании"
-                                ),
-                              isKy ? "Күтүүдө" : "Снова в ожидании"
-                            )
-                          }
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          {isKy ? "Күтүү" : "В ожидание"}
-                        </button>
-                      )}
                     </div>
                     </div>
                     {reviewId === apt.id &&

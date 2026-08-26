@@ -11,7 +11,6 @@ import {
   Save,
   Ban,
   RotateCcw,
-  UserX,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { StageBadge, StatusBadge } from "@/components/ui/Badge";
@@ -232,7 +231,7 @@ export default function AppealDetailPage() {
       newSlotEnd,
       currentUser
     );
-    flash(res.ok, res.ok ? "Дата/время обновлены." : res.error);
+    flash(res.ok, res.ok ? "Дата и время приёма обновлены." : res.error);
   }
 
   async function onStage(e: React.FormEvent) {
@@ -487,29 +486,13 @@ export default function AppealDetailPage() {
       {canManage && appointment && (
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-slate-900">
-            Быстрые действия
+            Действия
           </h2>
           <div className="flex flex-wrap gap-2">
             {appointment.status !== "cancelled" &&
               appointment.status !== "accepted" &&
               appointment.status !== "completed" && (
                 <>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"
-                    onClick={async () => {
-                      if (!currentUser) return;
-                      const r = await staffSetAppointmentStatus(
-                        appointment.id,
-                        "no_show",
-                        currentUser
-                      );
-                      flash(r.ok, r.ok ? "Неявка" : r.error);
-                    }}
-                  >
-                    <UserX className="h-3.5 w-3.5" />
-                    Неявка
-                  </button>
                   <button
                     type="button"
                     className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-100"
@@ -523,16 +506,17 @@ export default function AppealDetailPage() {
                         appointment.id,
                         currentUser
                       );
-                      flash(r.ok, r.ok ? "Отменено" : r.error);
+                      flash(r.ok, r.ok ? "Запись отменена." : r.error);
                     }}
                   >
                     <Ban className="h-3.5 w-3.5" />
-                    Отменить
+                    Отменить запись
                   </button>
                 </>
               )}
             {(appointment.status === "cancelled" ||
-              appointment.status === "no_show") && (
+              appointment.status === "no_show" ||
+              appointment.status === "rejected") && (
               <button
                 type="button"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
@@ -544,12 +528,14 @@ export default function AppealDetailPage() {
                   );
                   flash(
                     r.ok,
-                    r.ok ? "Восстановлено → ожидание (регистрация)" : r.error
+                    r.ok
+                      ? "Запись возвращена в статус «Поступила»."
+                      : r.error
                   );
                 }}
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                Вернуть в ожидание
+                Вернуть в регистрацию
               </button>
             )}
             {appeal.stage === "registered" && (
@@ -571,7 +557,7 @@ export default function AppealDetailPage() {
                   href="/admin/reception"
                   className="inline-flex items-center gap-1.5 rounded-lg bg-court-navy px-3 py-2 text-xs font-semibold text-white"
                 >
-                  К приёму →
+                  К приёму
                 </Link>
               ) : null)}
             {appeal.stage === "in_control" &&
@@ -594,7 +580,7 @@ export default function AppealDetailPage() {
         <div className="space-y-3 lg:col-span-2">
           <Collapsible
             title="Карточка гражданина"
-            subtitle="ФИО, контакты, тема — можно править"
+            subtitle="ФИО, контакты и тема обращения"
             defaultOpen
             badge={
               <ClipboardList className="h-4 w-4 text-slate-400" />
@@ -812,8 +798,8 @@ export default function AppealDetailPage() {
 
           {canPrep && (
             <Collapsible
-              title="Этап 2 · Подготовка"
-              subtitle="Предварительное изучение для руководства"
+              title="Подготовка"
+              subtitle="Предварительное изучение материалов для руководства"
               defaultOpen={appeal.stage === "under_review"}
               badge={<UserCheck className="h-4 w-4 text-slate-400" />}
             >

@@ -287,6 +287,8 @@ export interface CourtContactsContent {
   trustPhoneTel: string;
   addressRu: string;
   addressKy: string;
+  /** Ссылка на карту (2ГИС и т.п.) */
+  mapUrl?: string;
   receptionOfficeRu: string;
   receptionOfficeKy: string;
   sourceNoteRu: string;

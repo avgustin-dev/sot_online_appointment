@@ -222,7 +222,7 @@ export default function ControlPage() {
     if (!currentUser || !selected) return;
     if (answer.trim().length < 20) {
       setErr(true);
-      setMsg(L("Протокол слишком короткий (минимум ~20 символов).", "Протокол өтө кыска."));
+      setMsg(L("Текст протокола должен содержать не менее 20 символов.", "Протоколдун тексти кеминде 20 белгиден турушу керек."));
       return;
     }
     const sent = await submitFinalAnswer(selected.id, currentUser, answer);
@@ -268,8 +268,8 @@ export default function ControlPage() {
       <AdminHeading
         title={isKy ? "Тапшырмалар" : "Поручения"}
         lead={L(
-          "Список поручений с ФИО исполнителя и статусом. Назначает председатель, статус меняет исполнитель.",
-          "Тизме: ФИО аткаруучу жана статус. Председатель дайындайт, аткаруучу статусту өзгөртөт."
+          "Список поручений с указанием исполнителя и статуса исполнения.",
+          "Аткаруучунун ФИО жана аткаруу статусу көрсөтүлгөн тапшырмалардын тизмеси."
         )}
       />
 
@@ -311,7 +311,7 @@ export default function ControlPage() {
             { key: "all" as const, label: L("Все", "Баары"), n: counts.all, icon: ClipboardCheck },
             { key: "open" as const, label: L("В работе", "Ачык"), n: counts.open, icon: Clock },
             { key: "overdue" as const, label: L("Просрочено", "Мөөнөтү өткөн"), n: counts.overdue, icon: AlertTriangle },
-            { key: "done" as const, label: L("Завершено", "Бүттү"), n: counts.done, icon: CheckCircle2 },
+            { key: "done" as const, label: L("Завершено", "Аякталды"), n: counts.done, icon: CheckCircle2 },
           ] as const
         ).map((c) => {
           const Icon = c.icon;

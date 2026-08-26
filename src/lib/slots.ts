@@ -85,17 +85,20 @@ export function listAvailableDates(
   return dates;
 }
 
-/** Отображение даты: дд.мм.гггг (формат КР, не гггг-мм-дд) */
+/** Отображение даты: дд.мм.гг */
 export function formatDateRu(dateStr: string): string {
   if (!dateStr) return "";
-  // already display?
-  if (/^\d{2}\.\d{2}\.\d{4}$/.test(dateStr)) return dateStr;
+  // already display (дд.мм.гггг → shorten, or дд.мм.гг)
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(dateStr)) {
+    return `${dateStr.slice(0, 6)}${dateStr.slice(8)}`;
+  }
+  if (/^\d{2}\.\d{2}\.\d{2}$/.test(dateStr)) return dateStr;
   const d = parseISO(dateStr);
   if (Number.isNaN(d.getTime())) return dateStr;
-  return format(d, "dd.MM.yyyy");
+  return format(d, "dd.MM.yy");
 }
 
-/** ISO yyyy-MM-dd → дд.мм.гггг */
+/** ISO yyyy-MM-dd → дд.мм.гг */
 export function isoToDisplay(iso: string): string {
   return formatDateRu(iso);
 }

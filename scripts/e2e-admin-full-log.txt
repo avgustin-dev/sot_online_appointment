@@ -1,0 +1,59 @@
+···  === 1. Проверка 20 учебных записей ===
+OK   appointments: 20
+OK   appeals: 20
+OK   Все обязательные поля заявок и карточек заполнены
+···  Статусы: {"pending_review":3,"confirmed":8,"accepted":2,"completed":3,"rejected":1,"cancelled":1,"no_show":1,"rescheduled":1}
+···  Этапы: {"registered":7,"under_review":3,"ready_for_reception":2,"in_control":2,"answered":1,"closed":2,"cancelled":3}
+OK   Есть поступившие (≥3)
+OK   Есть готовые к приёму
+OK   Есть поручения на контроле
+OK   Есть закрытые
+OK   Шпаргалка записана в scripts/DEMO-20.txt
+···  === 2. Роль справочная (spravochnaya) ===
+OK   Вход spravochnaya → http://localhost:3000/admin/inbox
+OK   Inbox: видна заявка VS-2026-0001
+OK   Подтверждение VS-2026-0001
+OK   Отклонение VS-2026-0002 + этап cancelled
+OK   Начать подготовку VS-2026-0004
+OK   Завершить подготовку VS-2026-0006
+OK   reception: /admin/analytics открывается (Мониторинг)
+OK   reception: /admin/content открывается (Публичный сайт)
+OK   reception: /admin/settings открывается (График приёма)
+OK   reception: /admin/journal открывается (Журнал действий)
+OK   reception: /admin/calendar открывается (Сегодня)
+···  === 3. Роль председатель (predsedatel) ===
+OK   Вход predsedatel → http://localhost:3000/admin/reception
+···  inbox под leadership: страница загружена
+OK   Приём: видна VS-2026-0008 (chairman)
+OK   Протокол приёма VS-2026-0008 → in_control/accepted
+OK   my-schedule открывается
+···  eligibility под leadership: скрыта/иное
+···  === 4. Роль исполнитель (ispolnitel) ===
+OK   Вход ispolnitel → http://localhost:3000/admin/control
+OK   Контроль: видны поручения исполнителя
+OK   Статус поручения VS-2026-0011 → done
+OK   Исполнитель: pending в inbox не показан / нет доступа к действию
+···  === 5. Роль администратор (admin) ===
+OK   Вход admin → http://localhost:3000/admin
+OK   admin: /admin
+OK   admin: /admin/inbox
+OK   admin: /admin/appeals
+OK   admin: /admin/reception
+OK   admin: /admin/control
+OK   admin: /admin/protocols
+OK   admin: /admin/analytics
+OK   admin: /admin/content
+OK   admin: /admin/eligibility
+OK   admin: /admin/settings
+OK   admin: /admin/journal
+OK   admin: /admin/calendar
+OK   admin: /admin/my-schedule
+OK   admin: /admin/survey
+OK   admin: /admin/survey/results
+OK   admin: /admin/help
+···  Поле ФИО не найдено на карточке — пропуск правки
+···  === 6. Публичный статус (код + PIN 1234) ===
+OK   Статус по коду+PIN открывается (VS-2026-0005)
+···  === 7. Восстановление чистых 20 записей ===
+OK   Чистые 20 учебных записей восстановлены для презентации
+OK   VS-2026-0001 снова pending_review

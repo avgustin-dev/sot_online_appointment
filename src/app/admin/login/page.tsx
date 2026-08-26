@@ -147,8 +147,8 @@ export default function AdminLoginPage() {
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 {isKy
-                  ? "Сырсөз бардыгы үчүн: 1111"
-                  : "Пароль для всех учёток: 1111"}
+                  ? "Демо-сырсөз бардык эсептер үчүн: 1111"
+                  : "Демо-пароль для всех учётных записей: 1111"}
               </p>
               <ul className="mt-3 space-y-2">
                 {DEMO_ACCOUNTS.map((a) => (
