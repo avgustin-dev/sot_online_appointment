@@ -8,13 +8,9 @@ export function toStaffProfile(user: StaffUser): StaffProfile {
 }
 
 export function staffHomePath(
-  user: StaffProfile,
-  hasPending = false
+  _user: StaffProfile,
+  _hasPending = false
 ): string {
-  if (user.role === "admin") return "/admin";
-  if (user.role === "responsible") return "/admin/control";
-  if (user.role === "leadership") return "/admin/reception";
-  if (user.role === "reception" && hasPending) return "/admin/inbox";
   return "/admin";
 }
 

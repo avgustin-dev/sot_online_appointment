@@ -6,25 +6,8 @@ import type {
   PublicAppointment,
 } from "@/api/dto";
 import type { StaffProfile } from "./staff";
+import type { BookInput } from "./types";
 
-type BookInput = {
-  fullName: string;
-  phone: string;
-  email?: string;
-  topic: string;
-  region: string;
-  locality: string;
-  street: string;
-  category: Appointment["category"];
-  description?: string;
-  date: string;
-  slotStart: string;
-  slotEnd: string;
-  targetId: string;
-  companions?: { fullName: string; phone?: string }[];
-};
-
-type ResultOk = { ok: true };
 type ResultErr = { ok: false; error: string };
 
 function fail(e: unknown): ResultErr {
@@ -216,6 +199,29 @@ export function wrapRemote(
           date,
           slotStart,
           slotEnd,
+        });
+        store.upsertAppointment(withPin(apt, pin));
+        return { ok: true as const };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+
+    updateAppointmentDetails: async (
+      code: string,
+      pin: string,
+      patch: Partial<
+        Pick<
+          Appointment,
+          "fullName" | "phone" | "email" | "topic" | "description"
+        >
+      >
+    ) => {
+      try {
+        const apt = await backend.public.actions(code, {
+          pin,
+          action: "update",
+          ...patch,
         });
         store.upsertAppointment(withPin(apt, pin));
         return { ok: true as const };

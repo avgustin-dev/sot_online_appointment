@@ -106,9 +106,14 @@ export function targetPerson(
 }
 
 export function targetShort(id: string, isKy = false, sc?: ServiceContent | null): string {
-  const row = peopleOf(sc).find((r) => r.id === id);
-  if (!row) return id;
-  return isKy
-    ? row.shortKy || row.fullNameKy || row.shortRu
-    : row.shortRu || row.fullNameRu || row.shortKy;
+  const row = peopleOf(sc).find((p) => p.id === id);
+  if (row) {
+    return isKy
+      ? row.shortKy || row.fullNameKy || row.shortRu
+      : row.shortRu || row.fullNameRu || row.shortKy;
+  }
+  // Запасные подписи, если id нет в справочнике руководства
+  if (id === "reception") return isKy ? "Кабыл алуу бөлмөсү" : "Приёмная";
+  if (id === "chairman") return isKy ? "Төрага" : "Председатель";
+  return id;
 }

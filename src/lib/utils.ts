@@ -9,6 +9,22 @@ export function generateCode(year = new Date().getFullYear()): string {
   return `VS-${year}-${n}`;
 }
 
+/**
+ * Код — публичный ключ поиска записи, дубликаты недопустимы.
+ * Перегенерируем, пока не найдём свободный; после 100 попыток
+ * (диапазон почти исчерпан) переходим на номер по времени.
+ */
+export function generateUniqueCode(
+  isTaken: (code: string) => boolean,
+  year = new Date().getFullYear()
+): string {
+  for (let i = 0; i < 100; i++) {
+    const code = generateCode(year);
+    if (!isTaken(code)) return code;
+  }
+  return `VS-${year}-${Date.now().toString().slice(-8)}`;
+}
+
 export function generatePin(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
 }

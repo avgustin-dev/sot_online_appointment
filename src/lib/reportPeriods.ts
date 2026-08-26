@@ -120,10 +120,25 @@ export function customPeriod(fromIso: string, toIso_: string): ReportPeriod {
   };
 }
 
+/** Без ограничения по дате — весь журнал. */
+export function allPeriod(): ReportPeriod {
+  return {
+    from: "1970-01-01",
+    to: "2100-12-31",
+    labelRu: "Все записи",
+    labelKy: "Бардык жазылуулар",
+  };
+}
+
+export function isAllPeriod(period: ReportPeriod): boolean {
+  return period.from <= "1970-01-01" && period.to >= "2100-12-31";
+}
+
 /** Отбирает записи (или что угодно с полем date=YYYY-MM-DD) по периоду, включительно. */
 export function filterByPeriod<T extends { date: string }>(
   items: T[],
   period: ReportPeriod
 ): T[] {
+  if (isAllPeriod(period)) return items;
   return items.filter((x) => x.date >= period.from && x.date <= period.to);
 }

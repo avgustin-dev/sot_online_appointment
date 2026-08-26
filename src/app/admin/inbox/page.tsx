@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Ban, CalendarClock, ExternalLink, Inbox } from "lucide-react";
+import { Ban, CalendarClock, ExternalLink, Inbox, Search } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { AdminHeading } from "@/components/staff/AdminHeading";
 import { ReviewRequestPanel } from "@/components/staff/ReviewRequestPanel";
@@ -15,9 +15,34 @@ import { formatDateRu, weekdayRu } from "@/lib/slots";
 import { targetShort } from "@/lib/targets";
 import { useI18n } from "@/lib/i18n";
 import { ReportPanel } from "@/components/staff/ReportPanel";
+import {
+  AdminPagination,
+  usePagedList,
+} from "@/components/ui/AdminPagination";
+import {
+  SortableTh,
+  compareValues,
+  toggleSort,
+  type SortState,
+} from "@/components/ui/SortableTh";
+import {
+  allPeriod,
+  filterByPeriod,
+  type ReportPeriod,
+} from "@/lib/reportPeriods";
 import type { Appointment } from "@/lib/types";
+import { EllipsisText } from "@/components/ui/EllipsisText";
 
 const FINAL_STATUSES = new Set(["cancelled", "rejected", "completed", "accepted"]);
+
+type InboxSortKey =
+  | "status"
+  | "name"
+  | "phone"
+  | "target"
+  | "topic"
+  | "date"
+  | "created";
 
 export default function InboxPage() {
   const { state, currentUser, staffRescheduleAppointment, staffCancelAppointment } =
@@ -34,19 +59,71 @@ export default function InboxPage() {
   const [flash, setFlash] = useState("");
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [period, setPeriod] = useState<ReportPeriod>(() => allPeriod());
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState<SortState<InboxSortKey>>({
+    key: null,
+    dir: "asc",
+  });
 
   const canCancel = currentUser?.role === "reception" || currentUser?.role === "admin";
 
-  const journal = useMemo(
-    () =>
-      [...state.appointments].sort((a, b) => {
-        const aPending = a.status === "pending_review" ? 0 : 1;
-        const bPending = b.status === "pending_review" ? 0 : 1;
+  const journal = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    const digits = query.replace(/\D/g, "");
+    let filtered = filterByPeriod(state.appointments, period);
+    if (query) {
+      filtered = filtered.filter((a) => {
+        const hay = [
+          a.fullName,
+          a.topic,
+          a.phone,
+          a.code,
+          targetShort(a.targetId, isKy, state.serviceContent),
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (hay.includes(query)) return true;
+        if (digits && a.phone.replace(/\D/g, "").includes(digits)) return true;
+        return false;
+      });
+    }
+    return [...filtered].sort((a, b) => {
+      const aPending = a.status === "pending_review" ? 0 : 1;
+      const bPending = b.status === "pending_review" ? 0 : 1;
+      if (!sort.key) {
         if (aPending !== bPending) return aPending - bPending;
-        return `${b.date}${b.slotStart}`.localeCompare(`${a.date}${a.slotStart}`);
-      }),
-    [state.appointments]
-  );
+        return (b.createdAt || b.updatedAt || "").localeCompare(
+          a.createdAt || a.updatedAt || ""
+        );
+      }
+      if (sort.key === "created" || sort.key === "status" || sort.key === "date") {
+        if (aPending !== bPending) return aPending - bPending;
+      }
+      const map: Record<InboxSortKey, string> = {
+        status: a.status,
+        name: a.fullName,
+        phone: a.phone,
+        target: targetShort(a.targetId, isKy, state.serviceContent),
+        topic: a.topic,
+        date: `${a.date}${a.slotStart}`,
+        created: a.createdAt || a.updatedAt || "",
+      };
+      const mapB: Record<InboxSortKey, string> = {
+        status: b.status,
+        name: b.fullName,
+        phone: b.phone,
+        target: targetShort(b.targetId, isKy, state.serviceContent),
+        topic: b.topic,
+        date: `${b.date}${b.slotStart}`,
+        created: b.createdAt || b.updatedAt || "",
+      };
+      return compareValues(map[sort.key], mapB[sort.key], sort.dir);
+    });
+  }, [state.appointments, state.serviceContent, period, sort, q, isKy]);
+
+  const { page, setPage, totalPages, slice, total, pageSize } =
+    usePagedList(journal);
 
   const open = journal.find((a) => a.id === openId) || null;
 
@@ -106,8 +183,8 @@ export default function InboxPage() {
         title={isKy ? "Өтүнмөлөр" : "Заявки"}
         lead={
           isKy
-            ? "Журнал. Сапты басыңыз — чечим."
-            : "Журнал записей. Нажмите строку — откроется решение."
+            ? "Келип түшкөн өтүнмөлөр. Сапты басыңыз — ырастоо же четке кагуу."
+            : "Поступившие заявки. Нажмите строку, чтобы подтвердить или отклонить запись."
         }
       />
 
@@ -120,6 +197,18 @@ export default function InboxPage() {
         orgName={t.orgName}
         reportTitle={t.admin.reportTitle}
         reportSubtitle={t.admin.reportSubtitle}
+        onPeriodChange={setPeriod}
+        search={
+          <div className="relative w-44 shrink-0 sm:w-52">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input !h-9 pl-8 !text-xs"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={L("Поиск…", "Издөө…")}
+            />
+          </div>
+        }
       />
 
       {flash && !openId && (
@@ -137,34 +226,130 @@ export default function InboxPage() {
       {journal.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          title={isKy ? "Азырынча өтүнмө жок" : "Заявок пока нет"}
-          description={L("Новые заявки появятся здесь.", "Жаңы өтүнмөлөр бул жерде көрүнөт.")}
+          title={
+            q.trim()
+              ? L("Ничего не найдено", "Табылган жок")
+              : isKy
+                ? "Тандалган мезгилде өтүнмө жок"
+                : "Нет заявок за период"
+          }
+          description={
+            q.trim()
+              ? L("Измените запрос или период.", "Издөөнү же мезгилди өзгөртүңүз.")
+              : L(
+                  "Смените месяц/период или дождитесь новых заявок.",
+                  "Мезгилди өзгөртүңүз же жаңы өтүнмөлөрдү күтүңүз."
+                )
+          }
           className="bg-white"
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <ul className="divide-y divide-slate-100">
-            {journal.map((apt) => (
-              <li key={apt.id}>
-                <button
-                  type="button"
-                  onClick={() => openRow(apt)}
-                  className="flex w-full flex-wrap items-center gap-2 px-4 py-3 text-left hover:bg-slate-50 sm:gap-3"
-                >
-                  <StatusBadge status={apt.status} />
-                  <span className="font-mono text-sm font-semibold text-court-navy">
-                    {apt.code}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
-                    {apt.fullName} · {apt.topic}
-                  </span>
-                  <span className="whitespace-nowrap text-xs text-slate-500">
-                    {formatDateRu(apt.date)} {apt.slotStart}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <SortableTh
+                    label={L("Заявитель", "Кайрылуучу")}
+                    sortKey="name"
+                    sort={sort}
+                    onSort={(k) => setSort((s) => toggleSort(s, k))}
+                  />
+                  <SortableTh
+                    label={L("Телефон", "Телефон")}
+                    sortKey="phone"
+                    sort={sort}
+                    onSort={(k) => setSort((s) => toggleSort(s, k))}
+                  />
+                  <SortableTh
+                    label={L("Адресат", "Адресат")}
+                    sortKey="target"
+                    sort={sort}
+                    onSort={(k) => setSort((s) => toggleSort(s, k))}
+                  />
+                  <SortableTh
+                    label={L("Тема", "Тема")}
+                    sortKey="topic"
+                    sort={sort}
+                    onSort={(k) => setSort((s) => toggleSort(s, k))}
+                  />
+                  <SortableTh
+                    label={L("Время приёма", "Кабыл алуу убактысы")}
+                    sortKey="date"
+                    sort={sort}
+                    onSort={(k) => setSort((s) => toggleSort(s, k))}
+                  />
+                  <SortableTh
+                    label={L("Статус", "Статус")}
+                    sortKey="status"
+                    sort={sort}
+                    onSort={(k) => setSort((s) => toggleSort(s, k))}
+                  />
+                </tr>
+              </thead>
+              <tbody>
+                {slice.map((apt) => {
+                  const isNew = apt.status === "pending_review";
+                  return (
+                  <tr
+                    key={apt.id}
+                    className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
+                    onClick={() => openRow(apt)}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-2">
+                        {isNew ? (
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full bg-rose-500"
+                            title={L("Новая заявка", "Жаңы өтүнмө")}
+                            aria-label={L("Новая заявка", "Жаңы өтүнмө")}
+                          />
+                        ) : (
+                          <span className="h-2 w-2 shrink-0" aria-hidden />
+                        )}
+                        <EllipsisText
+                          text={apt.fullName}
+                          className="font-medium text-slate-900"
+                          as="div"
+                        />
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                      {apt.phone || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-600">
+                      <EllipsisText
+                        text={targetShort(
+                          apt.targetId,
+                          isKy,
+                          state.serviceContent
+                        )}
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-600">
+                      <EllipsisText text={apt.topic} />
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
+                      {formatDateRu(apt.date)}
+                      <span className="ml-1 font-mono">{apt.slotStart}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={apt.status} />
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <AdminPagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            isKy={isKy}
+          />
         </div>
       )}
 
@@ -177,6 +362,7 @@ export default function InboxPage() {
               : undefined
           }
           onClose={close}
+          className={mode === "reschedule" ? "max-w-3xl" : undefined}
         >
           {mode === "view" ? (
             <div className="space-y-4">

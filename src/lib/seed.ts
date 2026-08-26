@@ -1,6 +1,8 @@
 import { catalog, cloneCatalog } from "./catalog";
 import { SEED_SURVEY_META, SEED_SURVEY_QUESTIONS } from "./surveySeed";
 import { mergeServiceContent } from "./serviceContent";
+import { buildDemoDataset } from "./demoSeed";
+import { useDemoData } from "@/config/env";
 import type {
   ActionLogEntry,
   AppealCard,
@@ -73,13 +75,10 @@ export function ensureSeedStaff(staff: StaffUser[]): StaffUser[] {
 }
 
 /**
- * Стартовое состояние платформы: только реальная конфигурация (учётки,
- * график, контент сайта, дерево допуска, вопросы опроса) — без демонстрационных
- * заявок/обращений/журнала действий. Они не нужны на презентации и должны
- * появляться только по факту реальной работы с системой.
+ * График приёма по умолчанию: и для локального сида, и до ответа /public/bootstrap.
  */
-export function buildSeedState(): PlatformState {
-  const calendar: CalendarSettings = {
+export function defaultCalendar(): CalendarSettings {
+  return {
     receptionWeekdays: [2, 4],
     dayStartMinutes: 8 * 60,
     dayEndMinutes: 12 * 60,
@@ -90,9 +89,18 @@ export function buildSeedState(): PlatformState {
     extraOpenDates: [],
     rulesText: catalog.calendarRules.rulesText,
   };
+}
 
-  const appointments: Appointment[] = [];
-  const appeals: AppealCard[] = [];
+/**
+ * Стартовое состояние платформы.
+ * При NEXT_PUBLIC_DEMO !== "false" (локальный контур) — 20 учебных заявок
+ * на все этапы цикла. Без демо — пустые списки.
+ */
+export function buildSeedState(): PlatformState {
+  const calendar = defaultCalendar();
+  const demo = useDemoData ? buildDemoDataset() : null;
+  const appointments: Appointment[] = demo?.appointments ?? [];
+  const appeals: AppealCard[] = demo?.appeals ?? [];
   const actionLog: ActionLogEntry[] = [];
 
   return {

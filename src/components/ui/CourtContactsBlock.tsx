@@ -82,7 +82,7 @@ export function CourtContactsBlock({
 
       {showSchedule && (
         <div className="mt-4 overflow-x-auto">
-          <table className="admin-table min-w-[520px] text-left">
+          <table className="admin-table min-w-[520px] [&_th]:!text-left [&_td]:!text-left">
             <thead>
               <tr>
                 <th className="!px-2 !py-2">№</th>

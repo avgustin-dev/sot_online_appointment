@@ -10,9 +10,15 @@ import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { AdminHeading } from "@/components/staff/AdminHeading";
 import { ReceptionTabs } from "@/components/staff/ReceptionTabs";
 import { Modal } from "@/components/ui/Modal";
-import { Users } from "lucide-react";
+import { Search, Users } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { targetShort } from "@/lib/targets";
+import { ReportPanel } from "@/components/staff/ReportPanel";
+import {
+  allPeriod,
+  filterByPeriod,
+  type ReportPeriod,
+} from "@/lib/reportPeriods";
 
 export default function ReceptionPage() {
   const { state, currentUser, completeReception } = useStore();
@@ -25,10 +31,16 @@ export default function ReceptionPage() {
   const [specialistsInvolved, setSpecialistsInvolved] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const [q, setQ] = useState("");
+  const [period, setPeriod] = useState<ReportPeriod>(() => allPeriod());
 
   const isDeputyView = currentUser?.role === "responsible";
 
   const queue = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const inPeriodIds = new Set(
+      filterByPeriod(state.appointments, period).map((a) => a.id)
+    );
     return state.appeals
       .filter((a) =>
         ["ready_for_reception", "under_review", "registered"].includes(a.stage)
@@ -40,25 +52,98 @@ export default function ReceptionPage() {
       .filter(
         (x) =>
           x.apt &&
+          inPeriodIds.has(x.apt.id) &&
           x.apt.status !== "cancelled" &&
           x.apt.status !== "rejected" &&
           x.apt.status !== "pending_review" &&
           (!isDeputyView || x.apt.targetId === currentUser?.targetId)
       )
+      .filter(({ appeal, apt }) => {
+        if (!needle) return true;
+        const target = apt
+          ? targetShort(apt.targetId, isKy, state.serviceContent)
+          : "";
+        const hay = [
+          appeal.fullName,
+          appeal.topic,
+          appeal.phone,
+          appeal.code,
+          appeal.summary,
+          target,
+          apt?.date,
+          apt?.slotStart,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(needle);
+      })
       .sort((a, b) => {
         const da = `${a.apt!.date}${a.apt!.slotStart}`;
         const db = `${b.apt!.date}${b.apt!.slotStart}`;
         return da.localeCompare(db);
       });
-  }, [state.appeals, state.appointments, isDeputyView, currentUser?.targetId]);
+  }, [
+    state.appeals,
+    state.appointments,
+    state.serviceContent,
+    isDeputyView,
+    currentUser?.targetId,
+    q,
+    period,
+    isKy,
+  ]);
 
-  const prepQueue = queue.filter((q) =>
-    ["registered", "under_review"].includes(q.appeal.stage)
+  const prepQueue = queue.filter((qItem) =>
+    ["registered", "under_review"].includes(qItem.appeal.stage)
   );
-  const liveQueue = queue.filter((q) => q.appeal.stage === "ready_for_reception");
+  const liveQueue = queue.filter(
+    (qItem) => qItem.appeal.stage === "ready_for_reception"
+  );
 
-  const selected = queue.find((q) => q.appeal.id === selectedId);
+  const selected = queue.find((qItem) => qItem.appeal.id === selectedId);
   const responsibles = state.staff.filter((s) => s.role === "responsible");
+
+  const reportScope = useMemo(() => {
+    const myTarget = currentUser?.targetId;
+    const baseAppointments =
+      myTarget &&
+      (currentUser?.role === "leadership" || currentUser?.role === "responsible")
+        ? state.appointments.filter(
+            (a) =>
+              a.targetId === myTarget &&
+              a.status !== "cancelled" &&
+              a.status !== "rejected"
+          )
+        : state.appointments;
+    const baseIds = new Set(baseAppointments.map((a) => a.id));
+    const baseAppeals = state.appeals.filter((a) =>
+      baseIds.has(a.appointmentId)
+    );
+
+    // В счётчике и отчёте — только карточки очереди приёма (как в списке ниже).
+    const queueStages = new Set([
+      "ready_for_reception",
+      "under_review",
+      "registered",
+    ]);
+    const queueAppeals = baseAppeals.filter((a) => queueStages.has(a.stage));
+    const queueAptIds = new Set(queueAppeals.map((a) => a.appointmentId));
+    const queueAppointments = baseAppointments.filter(
+      (a) =>
+        queueAptIds.has(a.id) &&
+        a.status !== "cancelled" &&
+        a.status !== "rejected" &&
+        a.status !== "pending_review"
+    );
+
+    return { appeals: queueAppeals, appointments: queueAppointments };
+  }, [
+    state.appeals,
+    state.appointments,
+    currentUser?.targetId,
+    currentUser?.role,
+  ]);
 
   const canConduct =
     currentUser && ["leadership", "admin", "reception"].includes(currentUser.role);
@@ -70,6 +155,49 @@ export default function ReceptionPage() {
     setAssignmentText("");
     setResponsibleUserId("");
     setSpecialistsInvolved("");
+  }
+
+  function renderQueueSection(label: string, items: typeof queue) {
+    if (items.length === 0) return null;
+    return (
+      <div>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          {label} ({items.length})
+        </p>
+        <ul className="space-y-2">
+          {items.map(({ appeal, apt }) => (
+            <li key={appeal.id}>
+              <button
+                type="button"
+                onClick={() => openItem(appeal.id)}
+                className="w-full rounded-xl border border-court-line px-3 py-3 text-left transition hover:bg-court-mist"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-court-navy">
+                      {appeal.fullName}
+                    </div>
+                    <div
+                      className="truncate text-xs text-court-muted"
+                      title={appeal.topic}
+                    >
+                      {appeal.topic}
+                    </div>
+                  </div>
+                  <StageBadge stage={appeal.stage} />
+                </div>
+                {apt && (
+                  <div className="mt-2 text-xs font-medium text-court-blue">
+                    {targetShort(apt.targetId, isKy, state.serviceContent)} ·{" "}
+                    {formatDateRu(apt.date)} · {apt.slotStart}–{apt.slotEnd}
+                  </div>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -117,11 +245,42 @@ export default function ReceptionPage() {
               ? "Сиздин жеке кабыл алууга ырасталган кайрылуулар."
               : "Ваши подтверждённые заявки на личный приём."
             : isKy
-              ? "Ырасталган жазылуулар. Даярдоо — карточка. Протокол — жетекчилик."
-              : "Подтверждённые записи. Подготовка карточки. Протокол — руководство."
+              ? "Ырасталган жазылуулар боюнча кабыл алууга даярдоо."
+              : "Подтверждённые записи к приёму и подготовка карточек."
         }
       />
       <ReceptionTabs isKy={isKy} />
+
+      <ReportPanel
+        appeals={reportScope.appeals}
+        appointments={reportScope.appointments}
+        serviceContent={state.serviceContent}
+        isKy={isKy}
+        lang={lang === "ky" ? "ky" : "ru"}
+        orgName={t.orgName}
+        reportTitle={t.admin.reportTitle}
+        reportSubtitle={
+          isDeputyView || currentUser?.role === "leadership"
+            ? isKy
+              ? "Жеке кабыл алуу боюнча"
+              : "По личному приёму"
+            : t.admin.reportSubtitle
+        }
+        onPeriodChange={setPeriod}
+        search={
+          <div className="relative w-40 shrink-0 sm:w-48">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input !h-9 pl-8 !text-xs"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={
+                isKy ? "ФИО, тема…" : "ФИО, тема…"
+              }
+            />
+          </div>
+        }
+      />
 
       {msg && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -132,92 +291,37 @@ export default function ReceptionPage() {
       <section className="card p-5">
         <h2 className="mb-4 font-display text-xl font-semibold text-court-navy">
           {isKy ? "Кезек" : "Очередь"}
+          <span className="ml-2 text-sm font-normal text-slate-400">
+            ({queue.length})
+          </span>
         </h2>
         {queue.length === 0 ? (
           <EmptyState
             icon={Users}
-            title={isKy ? "Кезек бош" : "Очередь пуста"}
+            title={
+              q.trim()
+                ? isKy
+                  ? "Табылган жок"
+                  : "Ничего не найдено"
+                : isKy
+                  ? "Кезек бош"
+                  : "Очередь пуста"
+            }
             description={
-              isKy ? "Ырасталган кайрылуулар жок." : "Нет подтверждённых обращений."
+              q.trim()
+                ? isKy
+                  ? "Издөө шарттарын өзгөртүңүз."
+                  : "Измените условия поиска."
+                : isKy
+                  ? "Ырасталган кайрылуулар жок."
+                  : "Нет подтверждённых обращений."
             }
             className="border-0 shadow-none"
           />
         ) : (
           <div className="space-y-4">
-            {prepQueue.length > 0 && (
-              <div>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  {isKy ? "Даярдоо" : "Подготовка"} ({prepQueue.length})
-                </p>
-                <ul className="space-y-2">
-                  {prepQueue.map(({ appeal, apt }) => (
-                    <li key={appeal.id}>
-                      <button
-                        type="button"
-                        onClick={() => openItem(appeal.id)}
-                        className="w-full rounded-xl border border-court-line px-3 py-3 text-left transition hover:bg-court-mist"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="font-mono text-xs text-court-muted">
-                              {appeal.code}
-                            </div>
-                            <div className="font-semibold text-court-navy">
-                              {appeal.fullName}
-                            </div>
-                            <div className="text-xs text-court-muted">{appeal.topic}</div>
-                          </div>
-                          <StageBadge stage={appeal.stage} />
-                        </div>
-                        {apt && (
-                          <div className="mt-2 text-xs font-medium text-court-blue">
-                            {targetShort(apt.targetId, isKy, state.serviceContent)} ·{" "}
-                            {formatDateRu(apt.date)} · {apt.slotStart}–{apt.slotEnd}
-                          </div>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {liveQueue.length > 0 && (
-              <div>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  {isKy ? "Протокол" : "К протоколу"} ({liveQueue.length})
-                </p>
-                <ul className="space-y-2">
-                  {liveQueue.map(({ appeal, apt }) => (
-                    <li key={appeal.id}>
-                      <button
-                        type="button"
-                        onClick={() => openItem(appeal.id)}
-                        className="w-full rounded-xl border border-court-line px-3 py-3 text-left transition hover:bg-court-mist"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="font-mono text-xs text-court-muted">
-                              {appeal.code}
-                            </div>
-                            <div className="font-semibold text-court-navy">
-                              {appeal.fullName}
-                            </div>
-                            <div className="text-xs text-court-muted">{appeal.topic}</div>
-                          </div>
-                          <StageBadge stage={appeal.stage} />
-                        </div>
-                        {apt && (
-                          <div className="mt-2 text-xs font-medium text-court-blue">
-                            {targetShort(apt.targetId, isKy, state.serviceContent)} ·{" "}
-                            {formatDateRu(apt.date)} · {apt.slotStart}–{apt.slotEnd}
-                          </div>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {renderQueueSection(isKy ? "Даярдоо" : "Подготовка", prepQueue)}
+            {renderQueueSection(isKy ? "Протокол" : "К протоколу", liveQueue)}
           </div>
         )}
       </section>

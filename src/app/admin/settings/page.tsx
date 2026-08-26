@@ -28,6 +28,36 @@ const WEEKDAYS = [
 /** Время 24-часового формата (КР) — select, без AM/PM */
 const TIME_OPTIONS = generateTimeOptions(6 * 60, 22 * 60, 5);
 
+function TimeSelect({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <label className="label">{label}</label>
+      <select
+        className="input font-mono"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+      >
+        {TIME_OPTIONS.map((tm) => (
+          <option key={tm} value={tm}>
+            {tm}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { state, currentUser, updateCalendar } = useStore();
   const { t, lang } = useI18n();
@@ -164,40 +194,18 @@ export default function SettingsPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">
-                {isKy ? "Башталышы (24ч)" : "Начало (24ч)"}
-              </label>
-              <select
-                className="input font-mono"
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-                disabled={!canEdit}
-              >
-                {TIME_OPTIONS.map((tm) => (
-                  <option key={tm} value={tm}>
-                    {tm}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">
-                {isKy ? "Аякталышы (24ч)" : "Окончание (24ч)"}
-              </label>
-              <select
-                className="input font-mono"
-                value={end}
-                onChange={(e) => setEnd(e.target.value)}
-                disabled={!canEdit}
-              >
-                {TIME_OPTIONS.map((tm) => (
-                  <option key={tm} value={tm}>
-                    {tm}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <TimeSelect
+              label={isKy ? "Башталышы (24ч)" : "Начало (24ч)"}
+              value={start}
+              onChange={setStart}
+              disabled={!canEdit}
+            />
+            <TimeSelect
+              label={isKy ? "Аякталышы (24ч)" : "Окончание (24ч)"}
+              value={end}
+              onChange={setEnd}
+              disabled={!canEdit}
+            />
             <div>
               <label className="label">
                 {isKy ? "Слот (мүн)" : "Длительность слота (мин)"}

@@ -8,6 +8,7 @@ import {
   Clock,
   ExternalLink,
   ClipboardCheck,
+  Search,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { StageBadge } from "@/components/ui/Badge";
@@ -15,6 +16,10 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { AdminHeading } from "@/components/staff/AdminHeading";
 import { Modal } from "@/components/ui/Modal";
+import {
+  AdminPagination,
+  usePagedList,
+} from "@/components/ui/AdminPagination";
 import { useI18n } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -23,6 +28,8 @@ import {
   assignmentStatusLabel,
 } from "@/lib/assignment";
 import type { AssignmentStatus } from "@/lib/types";
+import { EllipsisText } from "@/components/ui/EllipsisText";
+import { ReportPanel } from "@/components/staff/ReportPanel";
 
 export default function ControlPage() {
   const {
@@ -38,6 +45,7 @@ export default function ControlPage() {
   const L = (ru: string, ky: string) => (isKy ? ky : ru);
   const [selectedId, setSelectedId] = useState("");
   const [filter, setFilter] = useState<"all" | "open" | "overdue" | "done">("all");
+  const [q, setQ] = useState("");
   const [statusPick, setStatusPick] = useState<AssignmentStatus>("assigned");
   const [comment, setComment] = useState("");
   const [answer, setAnswer] = useState("");
@@ -61,11 +69,6 @@ export default function ControlPage() {
     if (currentUser?.role === "responsible") {
       list = list.filter((a) => a.assignment?.responsibleUserId === currentUser.id);
     }
-    list = list.sort((a, b) => {
-      const da = a.assignment?.dueDate || "9999";
-      const db = b.assignment?.dueDate || "9999";
-      return da.localeCompare(db);
-    });
     if (filter === "open") {
       list = list.filter(
         (a) => a.stage === "in_control" && a.assignment && a.assignment.status !== "done"
@@ -85,8 +88,48 @@ export default function ControlPage() {
         (a) => a.stage === "answered" || a.stage === "closed" || a.assignment?.status === "done"
       );
     }
-    return list;
-  }, [state.appeals, currentUser, filter, today]);
+    const query = q.trim().toLowerCase();
+    if (query) {
+      list = list.filter((a) => {
+        const hay = [
+          a.code,
+          a.fullName,
+          a.topic,
+          a.assignment?.responsibleName,
+          a.assignment?.text,
+          assignmentStatusLabel(a.assignment?.status, false),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(query);
+      });
+    }
+    // Новые сверху; просроченные в фильтре «все/в работе» поднимаем выше
+    return [...list].sort((a, b) => {
+      if (filter === "all" || filter === "open") {
+        const ao =
+          a.stage === "in_control" &&
+          a.assignment?.dueDate &&
+          a.assignment.dueDate < today &&
+          a.assignment.status !== "done"
+            ? 0
+            : 1;
+        const bo =
+          b.stage === "in_control" &&
+          b.assignment?.dueDate &&
+          b.assignment.dueDate < today &&
+          b.assignment.status !== "done"
+            ? 0
+            : 1;
+        if (ao !== bo) return ao - bo;
+      }
+      return (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt);
+    });
+  }, [state.appeals, currentUser, filter, today, q]);
+
+  const { page, setPage, totalPages, slice, total, pageSize } =
+    usePagedList(items);
 
   const selected = items.find((a) => a.id === selectedId);
 
@@ -193,6 +236,20 @@ export default function ControlPage() {
     setMsg(L("Протокол сохранён. Обращение завершено.", "Протокол сакталды."));
   }
 
+  const reportScope = useMemo(() => {
+    let appeals = state.appeals.filter((a) =>
+      ["in_control", "answered", "reception_done", "closed"].includes(a.stage)
+    );
+    if (currentUser?.role === "responsible") {
+      appeals = appeals.filter(
+        (a) => a.assignment?.responsibleUserId === currentUser.id
+      );
+    }
+    const aptIds = new Set(appeals.map((a) => a.appointmentId));
+    const appointments = state.appointments.filter((a) => aptIds.has(a.id));
+    return { appeals, appointments };
+  }, [state.appeals, state.appointments, currentUser]);
+
   function isOverdue(a: (typeof items)[number]) {
     if (!a.assignment) return false;
     return (
@@ -214,6 +271,38 @@ export default function ControlPage() {
           "Список поручений с ФИО исполнителя и статусом. Назначает председатель, статус меняет исполнитель.",
           "Тизме: ФИО аткаруучу жана статус. Председатель дайындайт, аткаруучу статусту өзгөртөт."
         )}
+      />
+
+      <ReportPanel
+        appeals={reportScope.appeals}
+        appointments={reportScope.appointments}
+        serviceContent={state.serviceContent}
+        isKy={isKy}
+        lang={lang === "ky" ? "ky" : "ru"}
+        orgName={t.orgName}
+        reportTitle={
+          isKy ? "Тапшырмалар боюнча отчёт" : "Отчёт по поручениям"
+        }
+        reportSubtitle={
+          currentUser?.role === "responsible"
+            ? isKy
+              ? "Менин тапшырмаларым"
+              : "Поручения, назначенные вам"
+            : isKy
+              ? "Башкаруудагы тапшырмалар"
+              : "Поручения на контроле"
+        }
+        search={
+          <div className="relative w-44 shrink-0 sm:w-52">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input !h-9 pl-8 !text-xs"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={L("Поиск…", "Издөө…")}
+            />
+          </div>
+        }
       />
 
       <div className="grid gap-2 sm:grid-cols-4">
@@ -253,51 +342,76 @@ export default function ControlPage() {
           <EmptyState
             icon={ClipboardCheck}
             title={L("Нет поручений", "Бош")}
-            description={L(
-              "После личного приёма или поручения обращения появятся здесь.",
-              "Жеке кабыл алуудан кийин бул жерде пайда болот."
-            )}
+            description={
+              q.trim()
+                ? L("Ничего не найдено по запросу.", "Издөө боюнча табылган жок.")
+                : L(
+                    "После личного приёма или поручения обращения появятся здесь.",
+                    "Жеке кабыл алуудан кийин бул жерде пайда болот."
+                  )
+            }
             className="border-0 shadow-none"
           />
         ) : (
-          <ul className="max-h-[min(70vh,560px)] space-y-2 overflow-y-auto">
-            {items.map((a) => {
-              const overdue = isOverdue(a);
-              return (
-                <li key={a.id}>
-                  <button
-                    type="button"
-                    onClick={() => openItem(a.id)}
-                    className={cn(
-                      "w-full rounded-xl border px-3 py-3 text-left transition",
-                      overdue
-                        ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50"
-                        : "border-slate-200 hover:bg-slate-50"
-                    )}
-                  >
-                    <div className="flex justify-between gap-2">
-                      <div className="font-mono text-xs text-slate-500">{a.code}</div>
-                      <div className="flex flex-wrap items-center gap-1">
-                        {overdue && (
-                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
-                            {L("Просрочка", "Мөөнөт")}
-                          </span>
-                        )}
-                        <StageBadge stage={a.stage} />
+          <>
+            <ul className="space-y-2">
+              {slice.map((a) => {
+                const overdue = isOverdue(a);
+                return (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      onClick={() => openItem(a.id)}
+                      className={cn(
+                        "w-full rounded-xl border px-3 py-3 text-left transition",
+                        overdue
+                          ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50"
+                          : "border-slate-200 hover:bg-slate-50"
+                      )}
+                    >
+                      <div className="flex justify-between gap-2">
+                        <EllipsisText
+                          text={a.fullName}
+                          className="min-w-0 font-semibold text-slate-900"
+                        />
+                        <div className="flex shrink-0 flex-wrap items-center gap-1">
+                          {overdue && (
+                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                              {L("Просрочка", "Мөөнөт")}
+                            </span>
+                          )}
+                          <StageBadge stage={a.stage} />
+                        </div>
                       </div>
-                    </div>
-                    <div className="mt-0.5 font-semibold text-slate-900">{a.fullName}</div>
-                    <div className="text-xs text-slate-500">
-                      {a.assignment?.responsibleName || "—"} · {L("срок", "мөөнөт")}{" "}
-                      {a.assignment?.dueDate || "—"}
-                      {a.assignment?.status &&
-                        ` · ${assignmentStatusLabel(a.assignment.status, isKy)}`}
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                      <div className="mt-0.5 text-xs text-slate-500">
+                        <EllipsisText
+                          text={`${a.assignment?.responsibleName || "—"} · ${L("срок", "мөөнөт")} ${a.assignment?.dueDate || "—"}${
+                            a.assignment?.status
+                              ? ` · ${assignmentStatusLabel(a.assignment.status, isKy)}`
+                              : ""
+                          }`}
+                        />
+                      </div>
+                      <EllipsisText
+                        text={a.topic}
+                        className="mt-0.5 text-xs text-slate-400"
+                        as="div"
+                      />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <AdminPagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              isKy={isKy}
+              className="mt-3 rounded-lg border border-slate-100"
+            />
+          </>
         )}
       </section>
 
@@ -309,13 +423,14 @@ export default function ControlPage() {
           className="max-w-2xl"
         >
           <div className="space-y-4">
-            <div className="flex items-center justify-between gap-2">
+            <div className="space-y-2">
               <div className="rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-950">
-                <strong>{L("Поручение:", "Тапшырма:")}</strong> {selected.assignment?.text || "—"}
+                <strong>{L("Поручение:", "Тапшырма:")}</strong>{" "}
+                {selected.assignment?.text || "—"}
               </div>
               <Link
                 href={`/admin/appeals/${selected.id}`}
-                className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-court-blue hover:underline"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-court-blue hover:underline"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
                 {L("Карточка", "Карточка")}
@@ -351,12 +466,16 @@ export default function ControlPage() {
                   value={assignTo}
                   onChange={(e) => setAssignTo(e.target.value)}
                   required
+                  title={
+                    state.staff.find((s) => s.id === assignTo)?.fullName ||
+                    undefined
+                  }
                 >
                   <option value="">{L("Выберите сотрудника", "Кызматкерди тандаңыз")}</option>
                   {state.staff
                     .filter((s) => s.role === "responsible")
                     .map((s) => (
-                      <option key={s.id} value={s.id}>
+                      <option key={s.id} value={s.id} title={`${s.fullName} — ${s.position}`}>
                         {s.fullName} — {s.position}
                       </option>
                     ))}

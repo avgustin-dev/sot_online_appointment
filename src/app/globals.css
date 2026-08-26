@@ -188,6 +188,17 @@ a {
     transform: translateY(0);
   }
 }
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 @keyframes page-in {
   from {
     opacity: 0;
@@ -235,16 +246,16 @@ a {
 
 /* Таблицы служебного кабинета */
 .admin-table {
-  @apply min-w-full text-left text-sm;
+  @apply w-full min-w-full table-fixed text-center text-sm;
 }
 .admin-table thead {
   @apply bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500;
 }
 .admin-table th {
-  @apply border-b border-slate-200 px-4 py-3;
+  @apply border-b border-slate-200 px-4 py-3 text-center;
 }
 .admin-table td {
-  @apply border-b border-slate-100 px-4 py-3 align-middle text-slate-800;
+  @apply max-w-0 overflow-hidden border-b border-slate-100 px-4 py-3 align-middle text-center text-slate-800;
 }
 .admin-table tbody tr {
   @apply transition-colors duration-150 hover:bg-slate-50;

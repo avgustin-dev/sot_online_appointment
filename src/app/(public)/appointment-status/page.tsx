@@ -546,18 +546,50 @@ export default function MyAppointmentPage() {
               <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                 <div>
                   <dt className="text-xs uppercase text-court-muted">
+                    {isKy ? "Кайрылуучу" : "Заявитель"}
+                  </dt>
+                  <dd className="font-semibold text-court-ink">
+                    {appeal.fullName}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase text-court-muted">
+                    {t.book.phone}
+                  </dt>
+                  <dd className="font-semibold text-court-ink">{appeal.phone}</dd>
+                </div>
+                {appeal.email ? (
+                  <div>
+                    <dt className="text-xs uppercase text-court-muted">
+                      {isKy ? "Электрондук почта" : "Электронная почта"}
+                    </dt>
+                    <dd className="font-semibold text-court-ink">
+                      {appeal.email}
+                    </dd>
+                  </div>
+                ) : null}
+                <div>
+                  <dt className="text-xs uppercase text-court-muted">
                     {isKy ? "Этап" : "Этап"}
                   </dt>
                   <dd className="font-semibold text-court-ink">
                     {t.stages[appeal.stage]}
                   </dd>
                 </div>
-                <div>
+                <div className="sm:col-span-2">
                   <dt className="text-xs uppercase text-court-muted">
                     {isKy ? "Тема" : "Тема"}
                   </dt>
                   <dd className="font-semibold text-court-ink">{appeal.topic}</dd>
                 </div>
+                {appeal.summary ? (
+                  <div className="sm:col-span-2">
+                    <dt className="text-xs uppercase text-court-muted">
+                      {isKy ? "Мазмуну" : "Содержание"}
+                    </dt>
+                    <dd className="mt-0.5 text-court-ink">{appeal.summary}</dd>
+                  </div>
+                ) : null}
               </dl>
               {appeal.finalAnswer && (
                 <div className="mt-4 border border-court-line bg-court-mist p-4 text-sm">

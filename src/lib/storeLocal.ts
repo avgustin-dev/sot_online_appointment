@@ -4,17 +4,17 @@ import type {
   Appointment,
   AppointmentStatus,
   AssignmentStatus,
+  BookInput,
   CalendarSettings,
   EligibilityTreeNode,
   PlatformState,
   ServiceContent,
-  StaffUser,
   SurveyMeta,
   SurveyQuestion,
 } from "./types";
 import type { StaffProfile } from "./staff";
 import { toStaffProfile } from "./staff";
-import { generateCode, generateId, generatePin } from "./utils";
+import { generateId, generatePin, generateUniqueCode } from "./utils";
 import {
   allowedManualStatuses,
   appointmentVisibleTo,
@@ -26,26 +26,7 @@ import { isReceptionDate, generateDaySlots, listAvailableDates } from "./slots";
 import { resolveTargetWindow } from "./targets";
 import { assignmentStatusLabel } from "./assignment";
 
-type Ok = { ok: true };
 type Err = { ok: false; error: string };
-type Result = Ok | Err;
-
-type BookInput = {
-  fullName: string;
-  phone: string;
-  email?: string;
-  topic: string;
-  region: string;
-  locality: string;
-  street: string;
-  category: Appointment["category"];
-  description?: string;
-  date: string;
-  slotStart: string;
-  slotEnd: string;
-  targetId: string;
-  companions?: { fullName: string; phone?: string }[];
-};
 
 export type LocalStoreApi = {
   getState: () => PlatformState;
@@ -224,9 +205,14 @@ export function wrapLocal(store: LocalStoreApi) {
         return { ok: false as const, error: "Выбранное время уже занято." };
       }
       const createdAt = nowIso();
+      const code = generateUniqueCode(
+        (c) =>
+          state.appointments.some((a) => a.code === c) ||
+          state.appeals.some((a) => a.code === c)
+      );
       const apt: Appointment = {
         id: generateId("apt"),
-        code: generateCode(),
+        code,
         fullName: input.fullName.trim(),
         phone: input.phone.trim(),
         email: input.email?.trim() || undefined,
@@ -402,6 +388,78 @@ export function wrapLocal(store: LocalStoreApi) {
         ],
       });
       return { ok: true as const };
+    },
+
+    updateAppointmentDetails: async (
+      code: string,
+      pin: string,
+      patch: Partial<
+        Pick<Appointment, "fullName" | "phone" | "email" | "topic" | "description">
+      >
+    ) => {
+      const apt = store
+        .getState()
+        .appointments.find(
+          (a) =>
+            a.code.toUpperCase() === code.trim().toUpperCase() && a.pin === pin
+        );
+      if (!apt) return { ok: false as const, error: "Запись не найдена." };
+      if (
+        ["cancelled", "completed", "accepted", "rejected"].includes(apt.status)
+      ) {
+        return {
+          ok: false as const,
+          error: "Сведения по этой записи изменить нельзя.",
+        };
+      }
+      if (apt.status !== "pending_review") {
+        return {
+          ok: false as const,
+          error:
+            "Изменение сведений доступно до подтверждения заявки справочной службой.",
+        };
+      }
+      const fullName = (patch.fullName ?? apt.fullName).trim();
+      const phone = (patch.phone ?? apt.phone).trim();
+      const topic = (patch.topic ?? apt.topic).trim();
+      if (!fullName || !phone || !topic) {
+        return {
+          ok: false as const,
+          error: "Заполните ФИО, телефон и тему обращения.",
+        };
+      }
+      const nextPatch = {
+        fullName,
+        phone,
+        email: patch.email !== undefined ? patch.email.trim() || undefined : apt.email,
+        topic,
+        description:
+          patch.description !== undefined
+            ? patch.description.trim()
+            : apt.description,
+        history: [
+          ...apt.history,
+          hist(
+            { fullName: "Гражданин" },
+            "Изменены сведения",
+            "Заявитель обновил данные заявки до подтверждения."
+          ),
+        ],
+      };
+      const next = patchApt(store, apt.id, nextPatch);
+      const apl = appealOfApt(store, apt.id);
+      if (apl && next) {
+        patchApl(store, apl.id, {
+          fullName: next.fullName,
+          phone: next.phone,
+          email: next.email,
+          topic: next.topic,
+          summary: next.description || next.topic,
+        });
+      }
+      return next
+        ? { ok: true as const }
+        : { ok: false as const, error: "Не удалось сохранить сведения." };
     },
 
     submitFeedback: async (

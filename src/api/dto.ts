@@ -89,10 +89,15 @@ export type UnlockAppointmentRequest = { pin: string };
 
 export type CitizenAppointmentActionRequest = {
   pin: string;
-  action: "cancel" | "reschedule";
+  action: "cancel" | "reschedule" | "update";
   date?: string;
   slotStart?: string;
   slotEnd?: string;
+  fullName?: string;
+  phone?: string;
+  email?: string;
+  topic?: string;
+  description?: string;
 };
 
 export type RecoverCodesRequest = { phone: string };

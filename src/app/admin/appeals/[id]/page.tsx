@@ -113,8 +113,41 @@ export default function AppealDetailPage() {
     return (
       <div className="card p-8 text-center">
         <p className="text-court-muted">Карточка не найдена.</p>
-        <Link href="/admin/appeals" className="btn-outline mt-4">
-          К списку
+        <Link
+          href={
+            currentUser?.role === "responsible" ||
+            currentUser?.role === "leadership"
+              ? "/admin/control"
+              : "/admin/appeals"
+          }
+          className="btn-outline mt-4"
+        >
+          Назад
+        </Link>
+      </div>
+    );
+  }
+
+  // Исполнитель: свои поручения или приём на свой адресат (если есть targetId)
+  const cardDenied =
+    !!currentUser &&
+    currentUser.role === "responsible" &&
+    appeal.assignment?.responsibleUserId !== currentUser.id &&
+    !(
+      currentUser.targetId &&
+      appointment?.targetId === currentUser.targetId
+    );
+
+  if (cardDenied) {
+    return (
+      <div className="card p-8 text-center">
+        <p className="text-court-muted">
+          {isKy
+            ? "Бул карточкага кирүү жок: тапшырма башка аткаруучуга берилген."
+            : "Нет доступа: поручение назначено другому исполнителю."}
+        </p>
+        <Link href="/admin/control" className="btn-outline mt-4">
+          {isKy ? "Менин тапшырмаларыма" : "К моим поручениям"}
         </Link>
       </div>
     );
@@ -235,7 +268,13 @@ export default function AppealDetailPage() {
       <Breadcrumbs
         items={[
           { label: t.crumbs.admin, href: "/admin" },
-          { label: t.crumbs.appeals, href: "/admin/appeals" },
+          currentUser?.role === "responsible" ||
+          currentUser?.role === "leadership"
+            ? {
+                label: isKy ? "Тапшырмалар" : "Поручения",
+                href: "/admin/control",
+              }
+            : { label: t.crumbs.appeals, href: "/admin/appeals" },
           { label: appeal.code },
         ]}
       />
@@ -255,17 +294,6 @@ export default function AppealDetailPage() {
             {appointment &&
               ` · ${targetShort(appointment.targetId, false, state.serviceContent)} · ${formatDateRu(appointment.date)} ${appointment.slotStart}–${appointment.slotEnd}`}
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/admin/reception" className="btn-outline !text-sm">
-            Приём
-          </Link>
-          <Link href="/admin/control" className="btn-outline !text-sm">
-            Контроль
-          </Link>
-          <Link href="/admin/calendar" className="btn-outline !text-sm">
-            Календарь
-          </Link>
         </div>
       </div>
 
@@ -533,22 +561,31 @@ export default function AppealDetailPage() {
                 Начать подготовку
               </button>
             )}
-            {appeal.stage === "ready_for_reception" && (
-              <Link
-                href="/admin/reception"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-court-navy px-3 py-2 text-xs font-semibold text-white"
-              >
-                К приёму →
-              </Link>
-            )}
-            {appeal.stage === "in_control" && (
-              <Link
-                href="/admin/control"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-court-navy px-3 py-2 text-xs font-semibold text-white"
-              >
-                К контролю →
-              </Link>
-            )}
+            {appeal.stage === "ready_for_reception" &&
+              currentUser &&
+              ["admin", "leadership", "reception", "responsible"].includes(
+                currentUser.role
+              ) &&
+              (currentUser.role !== "reception" ? (
+                <Link
+                  href="/admin/reception"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-court-navy px-3 py-2 text-xs font-semibold text-white"
+                >
+                  К приёму →
+                </Link>
+              ) : null)}
+            {appeal.stage === "in_control" &&
+              currentUser &&
+              ["admin", "leadership", "responsible"].includes(
+                currentUser.role
+              ) && (
+                <Link
+                  href="/admin/control"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-court-navy px-3 py-2 text-xs font-semibold text-white"
+                >
+                  К контролю →
+                </Link>
+              )}
           </div>
         </section>
       )}
@@ -668,7 +705,7 @@ export default function AppealDetailPage() {
           {canManage && appointment && (
             <Collapsible
               title="Дата, время и статусы"
-              subtitle="Перенос · статус записи · этап пайплайна"
+              subtitle="Перенос записи, изменение статуса и этапа"
               defaultOpen
             >
               <div className="space-y-5">

@@ -211,20 +211,20 @@ export function SlotPicker({
                     if (!isSameMonth(d, month)) setMonth(startOfMonth(d));
                   }}
                   className={cn(
-                    "relative flex min-h-[2.6rem] flex-col items-center justify-center bg-white text-sm font-medium sm:min-h-[3rem]",
-                    !inMonth && "text-court-muted/40",
-                    status === "selected" &&
-                      "bg-court-blue font-semibold text-white",
-                    status === "open" &&
-                      inMonth &&
-                      "text-court-ink hover:bg-court-light",
-                    (status === "closed" || status === "past") &&
-                      "cursor-not-allowed bg-court-mist/80 text-court-muted/50"
+                    "relative flex min-h-[2.6rem] flex-col items-center justify-center text-sm font-medium sm:min-h-[3rem]",
+                    // Один фон/цвет текста — иначе bg-white + bg-court-blue
+                    // дают белый текст на белом (число «пропадает»).
+                    status === "selected"
+                      ? "bg-court-blue font-semibold text-white"
+                      : status === "open" && inMonth
+                        ? "bg-white text-court-ink hover:bg-court-light"
+                        : "cursor-not-allowed bg-court-mist/80 text-court-muted/50",
+                    !inMonth && status !== "selected" && "opacity-45"
                   )}
                   aria-label={`${formatDateRu(key)}, ${weekdayRu(key)}`}
                   aria-pressed={status === "selected"}
                 >
-                  {d.getDate()}
+                  <span>{d.getDate()}</span>
                   {status === "open" && inMonth && (
                     <span className="mt-0.5 h-1 w-1 rounded-full bg-court-gold" />
                   )}
@@ -304,8 +304,11 @@ export function SlotPicker({
           <p className="mt-4 border-t border-court-line pt-3 text-xs text-court-muted">
             {targetId ? (
               <>
-                {isKy ? "Кимге" : "К кому"}:{" "}
-                {targetShort(targetId, isKy, state.serviceContent)}.{" "}
+                {isKy ? "Адресат" : "Адресат"}:{" "}
+                <strong className="text-court-ink">
+                  {targetShort(targetId, isKy, state.serviceContent)}
+                </strong>
+                .{" "}
               </>
             ) : null}
             {isKy ? "Иш убактысы" : "Окно приёма"}:{" "}

@@ -30,13 +30,12 @@ import { toStaffProfile, type StaffProfile } from "./staff";
 import { clearAccessToken, getAccessToken } from "@/api/session";
 import { backend } from "@/api/client";
 import { useRemoteApi } from "@/config/env";
-import { catalog } from "./catalog";
 import { wrapRemote, withPin } from "./storeRemote";
 import { wrapLocal } from "./storeLocal";
-import { buildSeedState, ensureSeedStaff } from "./seed";
+import { buildSeedState, defaultCalendar, ensureSeedStaff } from "./seed";
 
-export const STORAGE_KEY = "vs-kr-citizen-platform-v13";
-const STATE_VERSION = 13;
+export const STORAGE_KEY = "vs-kr-citizen-platform-v15";
+const STATE_VERSION = 15;
 
 function seedEligibilityTree(): EligibilityTreeNode[] {
   return cloneEligibilityTree() as EligibilityTreeNode[];
@@ -45,17 +44,7 @@ function seedEligibilityTree(): EligibilityTreeNode[] {
 const FALLBACK_ELIGIBILITY = seedEligibilityTree();
 
 /** Стартовое значение графика приёма — до первого ответа /public/bootstrap. */
-const DEFAULT_CALENDAR: CalendarSettings = {
-  receptionWeekdays: [2, 4],
-  dayStartMinutes: 8 * 60,
-  dayEndMinutes: 12 * 60,
-  slotDurationMinutes: 20,
-  breakMinutes: 5,
-  bookingHorizonDays: 45,
-  closedDates: [],
-  extraOpenDates: [],
-  rulesText: catalog.calendarRules.rulesText,
-};
+const DEFAULT_CALENDAR: CalendarSettings = defaultCalendar();
 
 /**
  * Клиентский кэш поверх API бэкенда. Здесь нет бизнес-логики (проверок доступности
@@ -537,6 +526,7 @@ export function useStore() {
     recoverCodesByPhone: api.recoverCodesByPhone,
     cancelAppointment: api.cancelAppointment,
     rescheduleAppointment: api.rescheduleAppointment,
+    updateAppointmentDetails: api.updateAppointmentDetails,
     staffCancelAppointment: api.staffCancelAppointment,
     staffRestoreAppointment: api.staffRestoreAppointment,
     staffSetAppointmentStatus: api.staffSetAppointmentStatus,

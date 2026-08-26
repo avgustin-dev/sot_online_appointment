@@ -227,15 +227,13 @@ export default function StaffCalendarPage() {
                         </span>
                         <StatusBadge status={apt.status} />
                       </div>
-                      <div className="mt-0.5 font-medium text-slate-900">
+                      <div className="mt-0.5 font-medium text-slate-900" title={apt.fullName}>
                         {apt.fullName}
                       </div>
-                      <div className="truncate text-xs text-slate-500">
-                        {apt.code}
-                        <span className="ml-1.5 rounded bg-amber-50 px-1 font-mono font-semibold text-amber-900">
-                          PIN {apt.pin}
-                        </span>
-                        {" · "}
+                      <div
+                        className="truncate text-xs text-slate-500"
+                        title={`${targetShort(apt.targetId, isKy, state.serviceContent)} · ${apt.topic} · ${apt.phone}`}
+                      >
                         {targetShort(apt.targetId, isKy, state.serviceContent)}
                         {" · "}
                         {apt.topic} · {apt.phone}

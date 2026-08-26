@@ -22,6 +22,8 @@ import {
   FileCheck2,
   CalendarClock,
   ScrollText,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { useStore } from "@/lib/store";
@@ -30,6 +32,11 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import { LangSwitch } from "@/components/ui/LangSwitch";
 import { useI18n } from "@/lib/i18n";
 import { EmblemKR } from "@/components/brand/Emblem";
+import { can } from "@/lib/acl";
+import {
+  AdminChromeProvider,
+  useAdminChrome,
+} from "@/components/layout/AdminChrome";
 
 type NavItem = {
   href: string;
@@ -41,12 +48,21 @@ type NavItem = {
 };
 
 export function StaffShell({ children }: { children: React.ReactNode }) {
+  return (
+    <AdminChromeProvider>
+      <StaffShellInner>{children}</StaffShellInner>
+    </AdminChromeProvider>
+  );
+}
+
+function StaffShellInner({ children }: { children: React.ReactNode }) {
   const { currentUser, logout, ready, setAdminModule, state } = useStore();
   const { lang } = useI18n();
   const isKy = lang === "ky";
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const { sidebarCollapsed, toggleSidebar } = useAdminChrome();
 
   const today = new Date().toISOString().slice(0, 10);
   const pendingCount = state.appointments.filter(
@@ -87,7 +103,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
     const items: NavItem[] = [
       {
         href: "/admin",
-        label: isKy ? "Бүгүн" : "Сегодня",
+        label: isKy ? "Жыйынтык" : "Сводка",
         icon: LayoutDashboard,
         exact: true,
       },
@@ -210,6 +226,12 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
     [isKy]
   );
 
+  // Карточка /admin/appeals/:id — у исполнителя/председателя есть viewCard,
+  // но нет пункта меню «Заявки и обращения»; список по-прежнему только canJournal.
+  const isAppealCard =
+    /^\/admin\/appeals\/[^/]+$/.test(pathname) && pathname !== "/admin/appeals";
+  const canOpenAppealCard = canJournal || can(currentUser, "viewCard");
+
   // Правило доступа к разделу по роли — тот же набор условий, что и для
   // видимости пункта меню (canInbox/canReception/…). Раньше проверялся
   // только факт входа, но не роль: сотрудник мог открыть скрытый в меню
@@ -218,7 +240,10 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
     { prefix: "/admin/inbox", allowed: canInbox },
     { prefix: "/admin/reception", allowed: canReception },
     { prefix: "/admin/calendar", allowed: canReception },
-    { prefix: "/admin/appeals", allowed: canJournal },
+    {
+      prefix: "/admin/appeals",
+      allowed: isAppealCard ? canOpenAppealCard : canJournal,
+    },
     { prefix: "/admin/control", allowed: canControl },
     { prefix: "/admin/protocols", allowed: canProtocols },
     { prefix: "/admin/my-schedule", allowed: canMySchedule },
@@ -329,8 +354,12 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[#f0f2f5] lg:flex">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[260px] max-w-[88vw] flex-col border-r border-slate-200/80 bg-white shadow-sm transition duration-200 ease-out lg:static lg:translate-x-0",
-          open ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 left-0 z-50 flex w-[260px] max-w-[88vw] flex-col overflow-hidden border-r border-slate-200/80 bg-white shadow-sm transition-[width,transform,opacity] duration-300 ease-out",
+          open ? "translate-x-0" : "-translate-x-full",
+          "lg:static lg:translate-x-0",
+          sidebarCollapsed
+            ? "lg:pointer-events-none lg:w-0 lg:border-0 lg:opacity-0 lg:shadow-none"
+            : "lg:w-[260px] lg:opacity-100"
         )}
       >
         <div className="flex min-h-[4.5rem] shrink-0 items-center gap-3 border-b border-slate-100 px-3 py-2.5">
@@ -464,6 +493,35 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
             aria-label="Меню"
           >
             <Menu className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className="hidden items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-700 transition hover:bg-slate-50 lg:inline-flex"
+            onClick={toggleSidebar}
+            aria-label={
+              sidebarCollapsed
+                ? isKy
+                  ? "Сайдбарды көрсөтүү"
+                  : "Показать меню"
+                : isKy
+                  ? "Сайдбарды жашыруу"
+                  : "Скрыть меню"
+            }
+            title={
+              sidebarCollapsed
+                ? isKy
+                  ? "Показать меню"
+                  : "Показать меню"
+                : isKy
+                  ? "Скрыть меню"
+                  : "Скрыть меню"
+            }
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-5 w-5" />
+            ) : (
+              <PanelLeftClose className="h-5 w-5" />
+            )}
           </button>
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-slate-900">

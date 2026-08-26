@@ -10,6 +10,10 @@ import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { AdminHeading } from "@/components/staff/AdminHeading";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SoftBadge } from "@/components/ui/Badge";
+import {
+  AdminPagination,
+  usePagedList,
+} from "@/components/ui/AdminPagination";
 import { ScrollText } from "lucide-react";
 import type { ActionLogEntry } from "@/lib/types";
 
@@ -38,7 +42,9 @@ export default function JournalPage() {
   const [q, setQ] = useState("");
 
   const filtered = useMemo(() => {
-    const log = state.actionLog ?? [];
+    const log = [...(state.actionLog ?? [])].sort((a, b) =>
+      b.at.localeCompare(a.at)
+    );
     const query = q.trim().toLowerCase();
     return log.filter((e) => {
       if (entityFilter !== "all" && e.entity !== entityFilter) return false;
@@ -51,6 +57,9 @@ export default function JournalPage() {
       );
     });
   }, [state.actionLog, entityFilter, q]);
+
+  const { page, setPage, totalPages, slice, total, pageSize } =
+    usePagedList(filtered);
 
   function linkFor(entry: ActionLogEntry): string | null {
     if (!entry.entityId) return null;
@@ -74,8 +83,8 @@ export default function JournalPage() {
         title={isKy ? "Аракеттер журналы" : "Журнал действий"}
         lead={
           isKy
-            ? "Кайрылуулардын, графиктин жана тапшырмалардын өзгөрүүлөрү — колдонуучу, күн, убакыт жана аракет."
-            : "Изменения заявок, графика и поручений — пользователь, дата, время и выполненное действие."
+            ? "Системада аткарылган аракеттердин каттоосу: ырастоо, которуу, тапшырма жана график."
+            : "Регистрация действий в системе: подтверждение записи, перенос, поручение и изменение графика."
         }
       />
 
@@ -135,45 +144,55 @@ export default function JournalPage() {
             className="border-0 shadow-none"
           />
         ) : (
-          <ul className="divide-y divide-slate-100">
-            {filtered.map((entry) => {
-              const href = linkFor(entry);
-              return (
-                <li
-                  key={entry.id}
-                  className="flex flex-wrap items-start justify-between gap-3 px-5 py-3 text-sm"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-900">
-                        {entry.action}
-                      </span>
-                      <SoftBadge tone="muted">
-                        {isKy
-                          ? ENTITY_LABEL[entry.entity].ky
-                          : ENTITY_LABEL[entry.entity].ru}
-                      </SoftBadge>
+          <>
+            <ul className="divide-y divide-slate-100">
+              {slice.map((entry) => {
+                const href = linkFor(entry);
+                return (
+                  <li
+                    key={entry.id}
+                    className="flex flex-wrap items-start justify-between gap-3 px-5 py-3 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-900">
+                          {entry.action}
+                        </span>
+                        <SoftBadge tone="muted">
+                          {isKy
+                            ? ENTITY_LABEL[entry.entity].ky
+                            : ENTITY_LABEL[entry.entity].ru}
+                        </SoftBadge>
+                      </div>
+                      <div className="mt-0.5 text-xs text-slate-500">
+                        {entry.userName}
+                        {entry.detail ? ` · ${entry.detail}` : ""}
+                      </div>
+                      {href && (
+                        <Link
+                          href={href}
+                          className="mt-1 inline-block text-xs font-semibold text-court-blue hover:underline"
+                        >
+                          {isKy ? "Карточканы ачуу →" : "Открыть карточку →"}
+                        </Link>
+                      )}
                     </div>
-                    <div className="mt-0.5 text-xs text-slate-500">
-                      {entry.userName}
-                      {entry.detail ? ` · ${entry.detail}` : ""}
+                    <div className="shrink-0 whitespace-nowrap text-xs text-slate-400">
+                      {formatAt(entry.at)}
                     </div>
-                    {href && (
-                      <Link
-                        href={href}
-                        className="mt-1 inline-block text-xs font-semibold text-court-blue hover:underline"
-                      >
-                        {isKy ? "Карточканы ачуу →" : "Открыть карточку →"}
-                      </Link>
-                    )}
-                  </div>
-                  <div className="shrink-0 whitespace-nowrap text-xs text-slate-400">
-                    {formatAt(entry.at)}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                  </li>
+                );
+              })}
+            </ul>
+            <AdminPagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              isKy={isKy}
+            />
+          </>
         )}
       </section>
     </div>

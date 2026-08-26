@@ -107,6 +107,24 @@ export interface Appointment {
   history: AppointmentHistoryItem[];
 }
 
+/** Данные формы электронной записи (общие для локального и удалённого стора). */
+export interface BookInput {
+  fullName: string;
+  phone: string;
+  email?: string;
+  topic: string;
+  region: string;
+  locality: string;
+  street: string;
+  category: AppealCategory;
+  description?: string;
+  date: string;
+  slotStart: string;
+  slotEnd: string;
+  targetId: string;
+  companions?: { fullName: string; phone?: string }[];
+}
+
 export interface AppointmentHistoryItem {
   at: string;
   action: string;
