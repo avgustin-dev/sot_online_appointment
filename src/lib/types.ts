@@ -13,8 +13,7 @@ export type AppealStage =
   | "ready_for_reception" // готово к личному приёму
   | "reception_done" // Этап 3: приём проведён
   | "in_control" // Этап 4: контроль исполнения
-  | "answered" // ответ направлен гражданину
-  | "closed" // завершено (+ feedback)
+  | "closed" // ответ направлен гражданину, обращение завершено
   | "cancelled";
 
 export type AppointmentStatus =
@@ -179,8 +178,7 @@ export type AssignmentStatus =
   | "not_assigned"
   | "assigned"
   | "in_progress"
-  | "done"
-  | "needs_rework";
+  | "done";
 
 export interface Assignment {
   text: string;

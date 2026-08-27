@@ -107,7 +107,7 @@ function AppealsListContent() {
         if (bucket === "reception") return a.stage === "ready_for_reception";
         if (bucket === "control") return a.stage === "in_control";
         if (bucket === "closed")
-          return ["answered", "closed", "cancelled"].includes(a.stage);
+          return ["closed", "cancelled"].includes(a.stage);
         return true;
       })
       .filter((a) => {

@@ -10,8 +10,7 @@ const stageTone: Record<AppealStage, string> = {
   ready_for_reception: "border-court-navy/30 bg-court-light text-court-navy",
   reception_done: "border-court-navy/40 bg-court-light text-court-navy",
   in_control: "border-amber-300 bg-amber-50 text-amber-950",
-  answered: "border-emerald-300 bg-emerald-50 text-emerald-900",
-  closed: "border-slate-300 bg-slate-100 text-slate-700",
+  closed: "border-emerald-300 bg-emerald-50 text-emerald-900",
   cancelled: "border-red-300 bg-red-50 text-red-900",
 };
 

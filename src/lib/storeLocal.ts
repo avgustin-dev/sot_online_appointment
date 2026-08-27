@@ -474,9 +474,12 @@ export function wrapLocal(store: LocalStoreApi) {
         );
       const apl = apt ? appealOfApt(store, apt.id) : undefined;
       if (!apl) return { ok: false as const, error: "Обращение не найдено." };
+      // Оценка гражданина — отдельная, необязательная обратная связь.
+      // Этап обращения она не меняет: "closed" ставится уже при ответе
+      // гражданину (submitFinalAnswer), независимо от того, оставит ли
+      // гражданин оценку вообще.
       patchApl(store, apl.id, {
         feedback: { ...feedback, submittedAt: nowIso() },
-        stage: apl.stage === "answered" ? "closed" : apl.stage,
       });
       return { ok: true as const };
     },
@@ -837,11 +840,11 @@ export function wrapLocal(store: LocalStoreApi) {
       if (apl.assignment.responsibleUserId !== u.id && u.role !== "admin") {
         return deny();
       }
-      // Статус поручения — это внутренний прогресс исполнителя, а не этап
-      // обращения: "Исполнено" само по себе не означает, что гражданину
-      // отправлен ответ. Этап "answered" ставит только submitFinalAnswer —
-      // иначе карточка могла закрыться (после оценки гражданина) без единого
-      // слова реального ответа.
+      // Статус поручения — это внутренний прогресс исполнителя (назначено /
+      // принято в работу), а не этап обращения. "Исполнено" сюда не
+      // передаётся из формы — этот статус выставляет только
+      // submitFinalAnswer, вместе с этапом "closed", когда гражданину
+      // реально отправлен ответ.
       patchApl(store, appealId, {
         assignment: { ...apl.assignment, status },
       });
@@ -872,12 +875,15 @@ export function wrapLocal(store: LocalStoreApi) {
       // которому исполнитель видит карточку в "Поручениях". Это действие —
       // только переназначение уже принятого обращения на другого сотрудника;
       // на "сыром" обращении оно оставляло бы поручение, невидимое
-      // исполнителю (этап карточки не сдвигался).
-      if (!["in_control", "answered"].includes(apl.stage)) {
+      // исполнителю (этап карточки не сдвигался). После "closed" обращение
+      // уже завершено (ответ гражданину направлен) — переназначать некого.
+      if (apl.stage !== "in_control") {
         return {
           ok: false as const,
           error:
-            "Сначала нужно провести личный приём и зафиксировать протокол — поручение появляется вместе с ним.",
+            apl.stage === "closed"
+              ? "Обращение уже завершено — поручение нельзя изменить."
+              : "Сначала нужно провести личный приём и зафиксировать протокол — поручение появляется вместе с ним.",
         };
       }
       const createdAt = nowIso();
@@ -934,7 +940,15 @@ export function wrapLocal(store: LocalStoreApi) {
       patchApl(store, appealId, {
         finalAnswer: answer,
         finalAnswerAt: nowIso(),
-        stage: "answered",
+        // Ответ гражданину — это и есть завершение обращения: этап сразу
+        // становится "closed", не дожидаясь оценки гражданина (она лишь
+        // необязательная обратная связь и на этап не влияет, см.
+        // submitFeedback). Статус поручения тем же действием становится
+        // "Исполнено" — автоматически, а не отдельным ручным шагом.
+        stage: "closed",
+        assignment: apl.assignment
+          ? { ...apl.assignment, status: "done" }
+          : apl.assignment,
       });
       const apt = store
         .getState()

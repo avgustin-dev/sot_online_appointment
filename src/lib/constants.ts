@@ -17,7 +17,6 @@ export const STAGE_ORDER: AppealStage[] = [
   "ready_for_reception",
   "reception_done",
   "in_control",
-  "answered",
   "closed",
 ];
 
@@ -25,8 +24,9 @@ export const STAGE_ORDER: AppealStage[] = [
  * Куда можно вручную перевести карточку из формы «Этап обращения» —
  * только шаги подготовки (до личного приёма). Дальше этапа
  * "ready_for_reception" карточка двигается только настоящими действиями:
- * completeReception → "in_control", submitFinalAnswer → "answered",
- * оценка гражданина → "closed", staffCancelAppointment → "cancelled".
+ * completeReception → "in_control", submitFinalAnswer → "closed" (ответ
+ * гражданину и есть завершение работы сотрудников — оценка гражданина
+ * на это уже не влияет), staffCancelAppointment → "cancelled".
  * Эти действия одновременно меняют и статус записи — свободный выбор этапа
  * здесь этого не делает и поэтому мог бы рассинхронизировать карточку
  * и запись (см. историю правок статусов).
@@ -37,7 +37,6 @@ export const APPEAL_STAGE_MANUAL_TRANSITIONS: Record<AppealStage, AppealStage[]>
   ready_for_reception: ["under_review"],
   reception_done: [],
   in_control: [],
-  answered: [],
   closed: [],
   cancelled: [],
 };

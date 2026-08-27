@@ -50,8 +50,10 @@ PIN записи — 4 цифры, **только в ответе на POST /pub
 
 ### Этап карточки `AppealStage`
 
-`registered` → `under_review` → `ready_for_reception` → `reception_done` → `in_control` → `answered` → `closed`  
+`registered` → `under_review` → `ready_for_reception` → `reception_done` → `in_control` → `closed`  
 (+ `cancelled`)
+
+`closed` ставится сразу при отправке финального ответа гражданину (`POST /staff/appeals/{id}/answer`) — это и есть завершение обращения. Оценка гражданина (`POST /public/appeals/{code}/feedback`) не меняет этап, это отдельная необязательная обратная связь.
 
 При отклонении/отмене записи этап карточки = `cancelled`. При `completed` → `reception_done`. При `no_show` → `cancelled`.
 

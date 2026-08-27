@@ -10,7 +10,6 @@ export const ASSIGNMENT_STATUSES: {
   { key: "assigned", ru: "Назначено", ky: "Дайындалды" },
   { key: "in_progress", ru: "Принято в работу", ky: "Ишке алынды" },
   { key: "done", ru: "Исполнено", ky: "Аткарылды" },
-  { key: "needs_rework", ru: "На доработке", ky: "Оңдоодо" },
 ];
 
 export function assignmentStatusLabel(

@@ -108,15 +108,16 @@ PIN выдаётся **только** в `POST /public/appointments`. GET его
   → карточка registered
   → under_review → ready_for_reception
   → приём (протокол + поручение)
-  → in_control → answered → closed
-  → оценка /service-evaluation/{code}
+  → in_control → closed (ответ гражданину = submitFinalAnswer)
+  → оценка /service-evaluation/{code} (необязательная обратная связь,
+    не меняет этап — closed уже стоит)
 ```
 
 Связь: `appointment.id` ↔ `appeal.appointmentId`, общий `code` вида `VS-2026-XXXX`.
 
 Статусы записи: `pending_review` | `confirmed` | `rescheduled` | `cancelled` | `rejected` | `completed` | `no_show`.
 
-Этапы карточки: `registered` → `under_review` → `ready_for_reception` → `reception_done` → `in_control` → `answered` → `closed` (+ `cancelled`).
+Этапы карточки: `registered` → `under_review` → `ready_for_reception` → `reception_done` → `in_control` → `closed` (+ `cancelled`).
 
 ---
 

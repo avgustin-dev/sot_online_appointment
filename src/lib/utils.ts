@@ -62,7 +62,6 @@ export function stageProgress(stage: string): number {
     ready_for_reception: 45,
     reception_done: 60,
     in_control: 75,
-    answered: 90,
     closed: 100,
     cancelled: 0,
   };

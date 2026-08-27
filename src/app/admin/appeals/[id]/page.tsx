@@ -157,13 +157,18 @@ export default function AppealDetailPage() {
     (currentUser.role === "leadership" || currentUser.role === "admin");
   // Поручение появляется вместе с протоколом приёма; здесь — только
   // поручить/переназначить уже принятое обращение (в т.ч. себе), иначе
-  // поручение осталось бы невидимым исполнителю.
-  const canAssign =
-    canAssignRole && ["in_control", "answered"].includes(appeal.stage);
+  // поручение осталось бы невидимым исполнителю. После "closed" обращение
+  // завершено — поручать уже некому, карточка становится просмотром истории.
+  const canAssign = canAssignRole && appeal.stage === "in_control";
   const canCancel = !!currentUser && can(currentUser, "cancelAppointment");
   const canReschedule =
     !!currentUser && can(currentUser, "rescheduleAppointment");
-  const responsibles = state.staff.filter((s) => s.role === "responsible");
+  // Поручение можно дать не только штатному исполнителю, но и
+  // руководителю (в т.ч. самому себе) — председатель/заместитель
+  // могут вести обращение лично, не передавая его дальше.
+  const responsibles = state.staff.filter(
+    (s) => s.role === "responsible" || s.role === "leadership"
+  );
 
   const canPrep =
     can(currentUser, "prepCard") &&
@@ -240,11 +245,14 @@ export default function AppealDetailPage() {
     if (!currentUser || !appeal) return;
     const resp = state.staff.find((s) => s.id === responsibleUserId);
     if (!resp) return;
+    const isSelf = resp.id === currentUser.id;
     setBusy(true);
     const res = await completeReception(appeal.id, currentUser, {
       citizenStatement: "",
       leadershipExplanation,
-      assignmentText,
+      assignmentText: isSelf
+        ? assignmentText.trim() || "Принято к исполнению лично."
+        : assignmentText,
       responsibleUserId: resp.id,
       responsibleName: resp.fullName,
       specialistsInvolved,
@@ -464,7 +472,14 @@ export default function AppealDetailPage() {
                   </div>
                 </form>
               )}
-              {canAssignRole && !canAssign && (
+              {canAssignRole && !canAssign && appeal.stage === "closed" && (
+                <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                  Обращение завершено — ответ гражданину направлен.
+                  Поручение больше нельзя переназначить, доступна только
+                  история действий ниже.
+                </p>
+              )}
+              {canAssignRole && !canAssign && appeal.stage !== "closed" && (
                 <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
                   Поручение появляется вместе с протоколом личного приёма —
                   сначала нажмите «Провести приём» в блоке «Действия» ниже.
@@ -537,7 +552,16 @@ export default function AppealDetailPage() {
               <button
                 type="button"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-court-navy px-3 py-2 text-xs font-semibold text-white hover:bg-court-navy/90"
-                onClick={() => setProtocolOpen(true)}
+                onClick={() => {
+                  // Гражданин уже выбрал адресата при записи — по умолчанию
+                  // ответственный это он (или ведущий приём, если у адресата
+                  // нет своей учётки), а не пустой выбор из общего списка.
+                  const byTarget = responsibles.find(
+                    (s) => s.targetId === appointment?.targetId
+                  );
+                  setResponsibleUserId(byTarget?.id || currentUser?.id || "");
+                  setProtocolOpen(true);
+                }}
               >
                 <UserCheck className="h-3.5 w-3.5" />
                 Провести приём
@@ -724,16 +748,6 @@ export default function AppealDetailPage() {
                 />
               </div>
               <div>
-                <label className="label">Поручение</label>
-                <textarea
-                  className="input min-h-[60px] w-full"
-                  value={assignmentText}
-                  onChange={(e) => setAssignmentText(e.target.value)}
-                  required
-                  placeholder="Содержание поручения ответственному…"
-                />
-              </div>
-              <div>
                 <label className="label">Ответственный по обращению</label>
                 <select
                   className="input w-full"
@@ -749,6 +763,18 @@ export default function AppealDetailPage() {
                   ))}
                 </select>
               </div>
+              {responsibleUserId !== currentUser?.id && (
+                <div>
+                  <label className="label">Поручение</label>
+                  <textarea
+                    className="input min-h-[60px] w-full"
+                    value={assignmentText}
+                    onChange={(e) => setAssignmentText(e.target.value)}
+                    required
+                    placeholder="Содержание поручения ответственному…"
+                  />
+                </div>
+              )}
               <div>
                 <label className="label">Привлечённые специалисты</label>
                 <input

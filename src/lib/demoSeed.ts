@@ -282,7 +282,7 @@ const ROWS: DemoRow[] = [
       dueOffsetDays: 7,
     },
   },
-  // 12 — ответ направлен
+  // 12 — завершено (ответ направлен, оценки от гражданина ещё нет)
   {
     n: 12,
     fullName: "Кожомкулов Талант Белекович",
@@ -294,7 +294,7 @@ const ROWS: DemoRow[] = [
     street: "ул. Московская, 172",
     targetId: "reception",
     status: "completed",
-    stage: "answered",
+    stage: "closed",
     when: -14,
     slotStart: "08:00",
     slotEnd: "08:20",
@@ -662,12 +662,12 @@ export function buildDemoDataset(from = new Date()): {
       prepNotes: row.prepNotes || "",
       prepCompletedBy:
         row.stage === "ready_for_reception" ||
-        ["in_control", "answered", "closed"].includes(row.stage)
+        ["in_control", "closed"].includes(row.stage)
           ? "Касымова Айгуль Бакытовна"
           : undefined,
       prepCompletedAt:
         row.stage === "ready_for_reception" ||
-        ["in_control", "answered", "closed"].includes(row.stage)
+        ["in_control", "closed"].includes(row.stage)
           ? createdAt
           : undefined,
       receptionProtocol,

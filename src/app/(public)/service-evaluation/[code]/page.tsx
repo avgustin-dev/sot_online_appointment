@@ -70,12 +70,9 @@ export default function FeedbackByCodePage() {
     );
   }
 
-  const stageOk = [
-    "answered",
-    "closed",
-    "in_control",
-    "reception_done",
-  ].includes(appeal.stage);
+  const stageOk = ["closed", "in_control", "reception_done"].includes(
+    appeal.stage
+  );
 
   /** Оценка онлайн-записи доступна всегда при найденной записи; полный цикл — после приёма */
   const bookingOnly = !stageOk;

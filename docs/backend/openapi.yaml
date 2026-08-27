@@ -625,7 +625,10 @@ paths:
               $ref: "#/components/schemas/SubmitFinalAnswerRequest"
       responses:
         "200":
-          description: stage=answered
+          description: >-
+            stage=closed (ответ гражданину = завершение обращения;
+            оценка гражданина через /public/appeals/{code}/feedback не
+            меняет stage и не требуется для его установки)
           content:
             application/json:
               schema:
@@ -905,7 +908,6 @@ components:
         - ready_for_reception
         - reception_done
         - in_control
-        - answered
         - closed
         - cancelled
 

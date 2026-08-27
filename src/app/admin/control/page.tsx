@@ -61,7 +61,7 @@ export default function ControlPage() {
 
   const items = useMemo(() => {
     let list = state.appeals.filter((a) =>
-      ["in_control", "answered", "reception_done", "closed"].includes(a.stage)
+      ["in_control", "reception_done", "closed"].includes(a.stage)
     );
     if (currentUser?.role === "responsible") {
       list = list.filter((a) => a.assignment?.responsibleUserId === currentUser.id);
@@ -82,7 +82,7 @@ export default function ControlPage() {
     }
     if (filter === "done") {
       list = list.filter(
-        (a) => a.stage === "answered" || a.stage === "closed" || a.assignment?.status === "done"
+        (a) => a.stage === "closed" || a.assignment?.status === "done"
       );
     }
     const query = q.trim().toLowerCase();
@@ -149,7 +149,7 @@ export default function ControlPage() {
 
   const counts = useMemo(() => {
     let base = state.appeals.filter((a) =>
-      ["in_control", "answered", "reception_done", "closed"].includes(a.stage)
+      ["in_control", "reception_done", "closed"].includes(a.stage)
     );
     if (currentUser?.role === "responsible") {
       base = base.filter((a) => a.assignment?.responsibleUserId === currentUser.id);
@@ -165,7 +165,7 @@ export default function ControlPage() {
         a.assignment.status !== "done"
     ).length;
     const done = base.filter(
-      (a) => a.stage === "answered" || a.stage === "closed" || a.assignment?.status === "done"
+      (a) => a.stage === "closed" || a.assignment?.status === "done"
     ).length;
     return { open, overdue, done, all: base.length };
   }, [state.appeals, currentUser, today]);
@@ -196,12 +196,7 @@ export default function ControlPage() {
       setComment("");
     }
     setErr(false);
-    setMsg(
-      L(
-        `Статус поручения: ${assignmentStatusLabel(statusPick)}`,
-        `Статус: ${assignmentStatusLabel(statusPick, true)}`
-      )
-    );
+    setSelectedId("");
   }
 
   async function onAssign(e: React.FormEvent) {
@@ -220,17 +215,12 @@ export default function ControlPage() {
       return;
     }
     setErr(false);
-    setMsg(L("Исполнитель назначен.", "Аткаруучу дайындалды."));
+    setSelectedId("");
   }
 
   async function onAnswer(e: React.FormEvent) {
     e.preventDefault();
     if (!currentUser || !selected) return;
-    if (answer.trim().length < 20) {
-      setErr(true);
-      setMsg(L("Текст протокола должен содержать не менее 20 символов.", "Протоколдун тексти кеминде 20 белгиден турушу керек."));
-      return;
-    }
     const sent = await submitFinalAnswer(selected.id, currentUser, answer);
     if (sent && "ok" in sent && !sent.ok) {
       setErr(true);
@@ -239,12 +229,12 @@ export default function ControlPage() {
     }
     setAnswer("");
     setErr(false);
-    setMsg(L("Протокол сохранён. Обращение завершено.", "Протокол сакталды."));
+    setSelectedId("");
   }
 
   const reportScope = useMemo(() => {
     let appeals = state.appeals.filter((a) =>
-      ["in_control", "answered", "reception_done", "closed"].includes(a.stage)
+      ["in_control", "reception_done", "closed"].includes(a.stage)
     );
     if (currentUser?.role === "responsible") {
       appeals = appeals.filter(
@@ -462,7 +452,7 @@ export default function ControlPage() {
               {assignmentStatusLabel(selected.assignment?.status, isKy)}
             </div>
 
-            {canAssign && (
+            {canAssign && selected.stage === "in_control" && (
               <form onSubmit={onAssign} className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
                 <div className="text-xs font-semibold text-slate-600">
                   {L("Назначить исполнителя (ФИО)", "Аткаруучуну дайындоо")}
@@ -479,7 +469,7 @@ export default function ControlPage() {
                 >
                   <option value="">{L("Выберите сотрудника", "Кызматкерди тандаңыз")}</option>
                   {state.staff
-                    .filter((s) => s.role === "responsible")
+                    .filter((s) => s.role === "responsible" || s.role === "leadership")
                     .map((s) => (
                       <option key={s.id} value={s.id} title={`${s.fullName} — ${s.position}`}>
                         {s.fullName} — {s.position}
@@ -499,18 +489,26 @@ export default function ControlPage() {
               </form>
             )}
 
-            {canChangeStatus && (
+            {canChangeStatus && selected.stage === "in_control" && (
               <form onSubmit={onStatus} className="space-y-3">
                 <label className="block space-y-1">
                   <span className="text-xs font-semibold text-slate-600">
                     {L("Статус поручения", "Тапшырманын статусу")}
                   </span>
+                  {/*
+                    "Исполнено" сюда не входит: этот статус выставляется
+                    автоматически при сохранении протокола (см. onAnswer) —
+                    он означает, что гражданину действительно отправлен
+                    ответ, а не просто "я закончил" по собственной оценке.
+                  */}
                   <select
                     className="input w-full"
                     value={statusPick}
                     onChange={(e) => setStatusPick(e.target.value as AssignmentStatus)}
                   >
-                    {ASSIGNMENT_STATUSES.filter((s) => s.key !== "not_assigned").map((st) => (
+                    {ASSIGNMENT_STATUSES.filter(
+                      (s) => s.key !== "not_assigned" && s.key !== "done"
+                    ).map((st) => (
                       <option key={st.key} value={st.key}>
                         {isKy ? st.ky : st.ru}
                       </option>
@@ -544,7 +542,6 @@ export default function ControlPage() {
                     value={answer}
                     onChange={(e) => setAnswer(e.target.value)}
                     placeholder={L("Текст протокола / обоснованного ответа…", "Протоколдун тексти…")}
-                    required
                   />
                 </label>
                 <button type="submit" className="btn-primary !text-sm">
