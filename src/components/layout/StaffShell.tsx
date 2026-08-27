@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
-  Users,
   ClipboardCheck,
   BarChart3,
   Settings,
@@ -13,13 +12,13 @@ import {
   Menu,
   X,
   ClipboardList,
+  CalendarDays,
   FilePenLine,
   ChartColumn,
   ExternalLink,
   GitBranch,
   BookOpen,
   Inbox,
-  FileCheck2,
   CalendarClock,
   ScrollText,
   PanelLeftClose,
@@ -80,18 +79,19 @@ function StaffShellInner({ children }: { children: React.ReactNode }) {
   const role = currentUser?.role;
 
   const canInbox = role === "admin" || role === "reception";
-  const canReception =
+  const canCalendar =
     role === "admin" ||
+    role === "reception" ||
     role === "leadership" ||
     (role === "responsible" && !!currentUser?.targetId);
   const canJournal =
     role === "admin" || role === "reception" || role === "leadership";
   const canControl =
     role === "admin" || role === "leadership" || role === "responsible";
-  const canProtocols = role === "admin" || role === "leadership";
   const canMySchedule =
-    (role === "admin" || role === "leadership" || role === "responsible") &&
-    !!currentUser?.targetId;
+    role === "admin" ||
+    ((role === "leadership" || role === "responsible" || role === "reception") &&
+      !!currentUser?.targetId);
   const canAnalytics = role === "admin" || role === "reception";
   const canContent = role === "admin" || role === "reception";
   const canSchedules = role === "admin" || role === "reception";
@@ -116,14 +116,6 @@ function StaffShellInner({ children }: { children: React.ReactNode }) {
         badge: pendingCount || undefined,
       });
     }
-    if (canReception) {
-      items.push({
-        href: "/admin/reception",
-        label: isKy ? "Кабыл алуу" : "Приём",
-        icon: Users,
-        prefixes: ["/admin/reception", "/admin/calendar"],
-      });
-    }
     if (canJournal) {
       items.push({
         href: "/admin/appeals",
@@ -139,22 +131,29 @@ function StaffShellInner({ children }: { children: React.ReactNode }) {
         badge: overdueCount || undefined,
       });
     }
-    if (canProtocols) {
+    if (canCalendar) {
       items.push({
-        href: "/admin/protocols",
-        label: isKy ? "Протоколдор" : "Протоколы",
-        icon: FileCheck2,
+        href: "/admin/calendar",
+        label: isKy ? "Расписание" : "Расписание",
+        icon: CalendarDays,
       });
     }
     return items;
-  }, [isKy, canInbox, canReception, canJournal, canControl, canProtocols, pendingCount, overdueCount]);
+  }, [isKy, canInbox, canCalendar, canJournal, canControl, pendingCount, overdueCount]);
 
   const refNav: NavItem[] = useMemo(() => {
     const items: NavItem[] = [];
     if (canMySchedule) {
       items.push({
         href: "/admin/my-schedule",
-        label: isKy ? "Графигим" : "Мой график",
+        label:
+          role === "admin"
+            ? isKy
+              ? "Графиктер"
+              : "Графики"
+            : isKy
+              ? "Графигим"
+              : "Мой график",
         icon: CalendarClock,
       });
     }
@@ -182,7 +181,7 @@ function StaffShellInner({ children }: { children: React.ReactNode }) {
     if (canSchedules) {
       items.push({
         href: "/admin/settings",
-        label: isKy ? "График" : "График",
+        label: isKy ? "Параметрлер" : "Параметры записи",
         icon: Settings,
       });
     }
@@ -201,6 +200,7 @@ function StaffShellInner({ children }: { children: React.ReactNode }) {
     return items;
   }, [
     isKy,
+    role,
     canMySchedule,
     canAnalytics,
     canContent,
@@ -233,19 +233,17 @@ function StaffShellInner({ children }: { children: React.ReactNode }) {
   const canOpenAppealCard = canJournal || can(currentUser, "viewCard");
 
   // Правило доступа к разделу по роли — тот же набор условий, что и для
-  // видимости пункта меню (canInbox/canReception/…). Раньше проверялся
+  // видимости пункта меню (canInbox/canCalendar/…). Раньше проверялся
   // только факт входа, но не роль: сотрудник мог открыть скрытый в меню
   // раздел прямым URL и увидеть данные, к которым не должен иметь доступ.
   const routeGuards: { prefix: string; allowed: boolean }[] = [
     { prefix: "/admin/inbox", allowed: canInbox },
-    { prefix: "/admin/reception", allowed: canReception },
-    { prefix: "/admin/calendar", allowed: canReception },
+    { prefix: "/admin/calendar", allowed: canCalendar },
     {
       prefix: "/admin/appeals",
       allowed: isAppealCard ? canOpenAppealCard : canJournal,
     },
     { prefix: "/admin/control", allowed: canControl },
-    { prefix: "/admin/protocols", allowed: canProtocols },
     { prefix: "/admin/my-schedule", allowed: canMySchedule },
     { prefix: "/admin/analytics", allowed: canAnalytics },
     { prefix: "/admin/content", allowed: canContent },

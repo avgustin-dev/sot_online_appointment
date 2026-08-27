@@ -259,7 +259,7 @@ export default function AdminHelpPage() {
               {isKy ? "Алдын ала изилдөө (этап 2)" : "Предварительное изучение (этап 2)"}
             </strong>
             <br />
-            <Link href="/admin/reception" className="text-court-blue">
+            <Link href="/admin/appeals" className="text-court-blue">
               {isKy ? "Даярдоо / кабыл алуу" : "Подготовка и приём"}
             </Link>
             <br />
@@ -274,7 +274,7 @@ export default function AdminHelpPage() {
               {isKy ? "Жеке кабыл алуу (этап 3)" : "Личный приём (этап 3)"}
             </strong>
             <br />
-            <Link href="/admin/reception" className="text-court-blue">
+            <Link href="/admin/appeals" className="text-court-blue">
               {isKy ? "Кабыл алуу" : "Подготовка и приём"}
             </Link>
             <br />

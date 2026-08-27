@@ -30,6 +30,7 @@ import {
 import type { AssignmentStatus } from "@/lib/types";
 import { EllipsisText } from "@/components/ui/EllipsisText";
 import { ReportPanel } from "@/components/staff/ReportPanel";
+import { can } from "@/lib/acl";
 
 export default function ControlPage() {
   const {
@@ -56,10 +57,6 @@ export default function ControlPage() {
 
   const canAssign =
     currentUser?.role === "leadership" || currentUser?.role === "admin";
-  const canChangeStatus =
-    currentUser?.role === "responsible" || currentUser?.role === "admin";
-  const canAnswer =
-    currentUser?.role === "responsible" || currentUser?.role === "admin";
   const today = new Date().toISOString().slice(0, 10);
 
   const items = useMemo(() => {
@@ -132,6 +129,15 @@ export default function ControlPage() {
     usePagedList(items);
 
   const selected = items.find((a) => a.id === selectedId);
+  // "responsible" ведёт только свои поручения; "leadership" — тоже только
+  // свои, и только те, что назначил себе через «Исполнить самому» на
+  // карточке (обычно поручает "responsible", а не ведёт сам). Admin — любые.
+  const isOwnAssignment =
+    currentUser?.role === "admin" ||
+    (!!currentUser && selected?.assignment?.responsibleUserId === currentUser.id);
+  const canChangeStatus =
+    can(currentUser, "changeAssignmentStatus") && isOwnAssignment;
+  const canAnswer = can(currentUser, "changeAssignmentStatus") && isOwnAssignment;
 
   useEffect(() => {
     const st = selected?.assignment?.status;

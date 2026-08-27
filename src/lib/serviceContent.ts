@@ -45,7 +45,6 @@ export function mergeServiceContent(
           weekdays: Array.isArray(p.weekdays) ? p.weekdays : [2, 4],
           showInSchedule: p.showInSchedule ?? true,
           bookable: p.bookable ?? true,
-          windowKind: p.windowKind ?? "calendar",
           startMinutes: p.startMinutes ?? 8 * 60,
           endMinutes: p.endMinutes ?? 12 * 60,
         }))

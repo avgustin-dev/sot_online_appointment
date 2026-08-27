@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { minutesToTime, timeToMinutes } from "@/lib/slots";
 import { targetPerson } from "@/lib/targets";
@@ -16,15 +18,25 @@ const WEEKDAYS: { id: number; ru: string; ky: string }[] = [
 ];
 
 /**
- * Правка собственного окна приёма (weekdays/startMinutes/endMinutes) для
- * Председателя/Зампреда — только своя запись в content.leadership, без
- * доступа к остальному контенту (см. StaffCmsController.patchLeadershipSchedule).
+ * Правка окна приёма (weekdays/startMinutes/endMinutes) для одной записи
+ * content.leadership — единственного источника графика, который потом как
+ * есть выводится в публичной части (CourtContactsBlock).
+ *
+ * Без targetId — это «Мой график»: правит только сам сотрудник, свою запись
+ * (см. patchLeadershipSchedule в storeLocal.ts). С targetId — режим админа:
+ * тот же компонент, но для выбранного им лица (см. /admin/my-schedule).
  */
-export function MyScheduleEditor({ isKy }: { isKy?: boolean }) {
+export function MyScheduleEditor({
+  isKy,
+  targetId: targetIdProp,
+}: {
+  isKy?: boolean;
+  targetId?: string;
+}) {
   const { currentUser, state, patchLeadershipSchedule } = useStore();
   const L = (ru: string, ky: string) => (isKy ? ky : ru);
 
-  const targetId = currentUser?.targetId;
+  const targetId = targetIdProp ?? currentUser?.targetId;
   const person = targetId ? targetPerson(targetId, isKy, state.serviceContent) : null;
   const current = state.serviceContent.leadership.find((p) => p.id === targetId);
 
@@ -52,17 +64,15 @@ export function MyScheduleEditor({ isKy }: { isKy?: boolean }) {
 
   if (!targetId) return null;
 
-  function toggleDay(id: number) {
-    setWeekdays((prev) =>
-      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id].sort()
-    );
+  function selectDay(id: number) {
+    setWeekdays([id]);
   }
 
   async function onSave() {
     if (!targetId) return;
     if (weekdays.length === 0) {
       setErr(true);
-      setMsg(L("Выберите хотя бы один день.", "Жок дегенде бир күндү тандаңыз."));
+      setMsg(L("Выберите день приёма.", "Кабыл алуу күнүн тандаңыз."));
       return;
     }
     setBusy(true);
@@ -85,7 +95,9 @@ export function MyScheduleEditor({ isKy }: { isKy?: boolean }) {
   return (
     <section className="card p-5">
       <h2 className="mb-1 font-display text-xl font-semibold text-court-navy">
-        {L("Мой график приёма", "Кабыл алуу графигим")}
+        {targetIdProp
+          ? L("График приёма", "Кабыл алуу графиги")
+          : L("Мой график приёма", "Кабыл алуу графигим")}
       </h2>
       {person && (
         <p className="mb-4 text-sm text-court-muted">
@@ -100,7 +112,8 @@ export function MyScheduleEditor({ isKy }: { isKy?: boolean }) {
               <button
                 key={d.id}
                 type="button"
-                onClick={() => toggleDay(d.id)}
+                aria-pressed={weekdays.includes(d.id)}
+                onClick={() => selectDay(d.id)}
                 className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
                   weekdays.includes(d.id)
                     ? "border-court-navy bg-court-navy text-white"
@@ -145,6 +158,43 @@ export function MyScheduleEditor({ isKy }: { isKy?: boolean }) {
         >
           {L("Сохранить график", "Графикти сактоо")}
         </button>
+
+        <div className="border-t border-slate-100 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="label">
+              {L("Сохранённый график", "Сакталган график")}
+            </span>
+            {current && current.weekdays.length > 0 && (
+              <Link
+                href="/"
+                target="_blank"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                {L(
+                  "синхронизировано с публичной частью",
+                  "коомдук бөлүк менен синхрондолгон"
+                )}
+              </Link>
+            )}
+          </div>
+          {current && current.weekdays.length > 0 ? (
+            <p className="mt-1 text-sm font-medium text-court-navy">
+              {current.weekdays
+                .map(
+                  (d) => WEEKDAYS.find((w) => w.id === d)?.[isKy ? "ky" : "ru"] ?? d
+                )
+                .join(", ")}
+              {" · "}
+              {minutesToTime(current.startMinutes)}–
+              {minutesToTime(current.endMinutes)}
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-court-muted">
+              {L("График ещё не сохранён.", "График али сакталган эмес.")}
+            </p>
+          )}
+        </div>
       </div>
     </section>
   );

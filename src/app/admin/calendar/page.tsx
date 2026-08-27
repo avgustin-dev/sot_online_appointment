@@ -17,7 +17,6 @@ import {
 import { StatusBadge } from "@/components/ui/Badge";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { AdminHeading } from "@/components/staff/AdminHeading";
-import { ReceptionTabs } from "@/components/staff/ReceptionTabs";
 import { ReviewRequestPanel } from "@/components/staff/ReviewRequestPanel";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
@@ -101,14 +100,13 @@ export default function StaffCalendarPage() {
         ]}
       />
       <AdminHeading
-        title={isKy ? "Кабыл алуу" : "Приём"}
+        title={isKy ? "Расписание" : "Расписание"}
         lead={
           isKy
             ? "Күн боюнча тизме. Өтүнмө — ырастоо же жокко чыгаруу."
-            : "Список по дням. Заявка — подтверждение или отмена."
+            : "Записи по дням. Заявка — подтверждение или отмена."
         }
       />
-      <ReceptionTabs isKy={isKy} />
 
       {msg && (
         <div

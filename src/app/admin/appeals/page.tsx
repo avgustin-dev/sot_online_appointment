@@ -2,13 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Search, Send } from "lucide-react";
+import { FileText, Search } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { StageBadge, StatusBadge } from "@/components/ui/Badge";
+import { StatusBadge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { AdminHeading } from "@/components/staff/AdminHeading";
-import { Modal } from "@/components/ui/Modal";
 import { useI18n } from "@/lib/i18n";
 import { targetShort } from "@/lib/targets";
 import { assignmentStatusLabel } from "@/lib/assignment";
@@ -46,7 +45,7 @@ function isoDay(iso: string | undefined): string {
 }
 
 export default function AppealsListPage() {
-  const { state, currentUser, assignAppeal } = useStore();
+  const { state, currentUser } = useStore();
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
   const router = useRouter();
@@ -59,43 +58,6 @@ export default function AppealsListPage() {
     dir: "asc",
   });
   const [period, setPeriod] = useState<ReportPeriod>(() => allPeriod());
-  const canAssign =
-    currentUser?.role === "leadership" || currentUser?.role === "admin";
-  const [assignId, setAssignId] = useState<string | null>(null);
-  const [assignTo, setAssignTo] = useState("");
-  const [assignText, setAssignText] = useState("");
-  const [assignBusy, setAssignBusy] = useState(false);
-  const [assignErr, setAssignErr] = useState("");
-  const responsibles = state.staff.filter((s) => s.role === "responsible");
-  const assignTarget = state.appeals.find((a) => a.id === assignId);
-
-  async function onAssign() {
-    const resp = state.staff.find((s) => s.id === assignTo);
-    if (!assignTarget || !resp || !assignText.trim()) {
-      setAssignErr(
-        isKy
-          ? "Аткаруучуну жана тапшырманы көрсөтүңүз."
-          : "Выберите исполнителя и укажите текст поручения."
-      );
-      return;
-    }
-    setAssignBusy(true);
-    const res = await assignAppeal(
-      assignTarget.id,
-      resp.id,
-      resp.fullName,
-      assignText.trim()
-    );
-    setAssignBusy(false);
-    if (!res.ok) {
-      setAssignErr(res.error);
-      return;
-    }
-    setAssignId(null);
-    setAssignTo("");
-    setAssignText("");
-    setAssignErr("");
-  }
 
   function appointmentOf(appointmentId: string) {
     return state.appointments.find((x) => x.id === appointmentId);
@@ -107,6 +69,16 @@ export default function AppealsListPage() {
     );
     const rows = state.appeals
       .filter((a) => inPeriod.has(a.appointmentId))
+      .filter((a) => {
+        // Председателю — только подтверждённые записи на его адресата:
+        // до подтверждения заявка ещё на рассмотрении справочной, а после
+        // приёма он ведёт её через «Поручения», а не через этот список.
+        if (currentUser?.role !== "leadership" || !currentUser.targetId) {
+          return true;
+        }
+        const apt = state.appointments.find((x) => x.id === a.appointmentId);
+        return apt?.status === "confirmed" && apt.targetId === currentUser.targetId;
+      })
       .filter((a) => {
         const apt = state.appointments.find((x) => x.id === a.appointmentId);
         if (bucket === "pending") return apt?.status === "pending_review";
@@ -168,7 +140,7 @@ export default function AppealsListPage() {
       return compareValues(vals[sort.key], valsB[sort.key], sort.dir);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.appeals, state.appointments, state.serviceContent, q, bucket, sort, period, isKy]);
+  }, [state.appeals, state.appointments, state.serviceContent, q, bucket, sort, period, isKy, currentUser]);
 
   const { page, setPage, totalPages, slice, total, pageSize } =
     usePagedList(list);
@@ -276,12 +248,6 @@ export default function AppealsListPage() {
                     onSort={(k) => setSort((s) => toggleSort(s, k))}
                   />
                   <SortableTh
-                    label={isKy ? "Этап" : "Этап"}
-                    sortKey="stage"
-                    sort={sort}
-                    onSort={(k) => setSort((s) => toggleSort(s, k))}
-                  />
-                  <SortableTh
                     label={isKy ? "Кайрылуу күнү" : "Дата обращения"}
                     sortKey="created"
                     sort={sort}
@@ -299,9 +265,7 @@ export default function AppealsListPage() {
                     sort={sort}
                     onSort={(k) => setSort((s) => toggleSort(s, k))}
                   />
-                  {canAssign && (
-                    <th>{isKy ? "Тапшырма" : "Поручение"}</th>
-                  )}
+                  <th>{isKy ? "Тапшырма" : "Поручение"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -348,9 +312,6 @@ export default function AppealsListPage() {
                       <td className="px-4 py-3 text-court-muted">
                         <EllipsisText text={targetLabel} />
                       </td>
-                      <td className="px-4 py-3">
-                        <StageBadge stage={a.stage} />
-                      </td>
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
                         {a.createdAt ? formatDateRu(isoDay(a.createdAt)) : "—"}
                       </td>
@@ -367,33 +328,20 @@ export default function AppealsListPage() {
                       <td className="px-4 py-3">
                         {apt ? <StatusBadge status={apt.status} /> : "—"}
                       </td>
-                      {canAssign && (
-                        <td className="px-4 py-3">
-                          {a.assignment ? (
-                            <EllipsisText
-                              text={`${a.assignment.responsibleName}${
-                                a.assignment.status
-                                  ? ` · ${assignmentStatusLabel(a.assignment.status, isKy)}`
-                                  : ""
-                              }`}
-                              className="text-xs text-court-muted"
-                            />
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setAssignId(a.id);
-                                setAssignErr("");
-                              }}
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-court-navy px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-court-navy/90"
-                            >
-                              <Send className="h-3.5 w-3.5" />
-                              {isKy ? "Тапшыруу" : "Поручить"}
-                            </button>
-                          )}
-                        </td>
-                      )}
+                      <td className="px-4 py-3">
+                        {a.assignment ? (
+                          <EllipsisText
+                            text={`${a.assignment.responsibleName}${
+                              a.assignment.status
+                                ? ` · ${assignmentStatusLabel(a.assignment.status, isKy)}`
+                                : ""
+                            }`}
+                            className="text-xs text-court-muted"
+                          />
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -409,50 +357,6 @@ export default function AppealsListPage() {
             isKy={isKy}
           />
         </div>
-      )}
-
-      {assignTarget && (
-        <Modal
-          title={isKy ? "Тапшыруу" : "Поручить обращение"}
-          subtitle={`${assignTarget.code} · ${assignTarget.fullName}`}
-          onClose={() => setAssignId(null)}
-        >
-          <div className="space-y-3">
-            <select
-              className="input"
-              value={assignTo}
-              onChange={(e) => setAssignTo(e.target.value)}
-            >
-              <option value="">
-                {isKy ? "— аткаруучу —" : "— исполнитель —"}
-              </option>
-              {responsibles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.fullName} — {r.position}
-                </option>
-              ))}
-            </select>
-            <textarea
-              className="input min-h-[80px]"
-              placeholder={isKy ? "Тапшырманын тексти" : "Текст поручения"}
-              value={assignText}
-              onChange={(e) => setAssignText(e.target.value)}
-            />
-            {assignErr && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-                {assignErr}
-              </div>
-            )}
-            <button
-              type="button"
-              disabled={assignBusy}
-              onClick={onAssign}
-              className="btn-primary !text-sm"
-            >
-              {isKy ? "Тапшырманы жөнөтүү" : "Отправить поручение"}
-            </button>
-          </div>
-        </Modal>
       )}
     </div>
   );

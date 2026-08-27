@@ -94,7 +94,7 @@ export interface Appointment {
   slotStart: string;
   slotEnd: string;
   status: AppointmentStatus;
-  /** К кому записан — id из RECEPTION_TARGETS */
+  /** К кому записан — id из ServiceContent.leadership */
   targetId: string;
   companions: Companion[];
   reviewNote?: string;
@@ -303,17 +303,17 @@ export interface LeadershipPerson {
   fullNameKy: string;
   positionRu: string;
   positionKy: string;
-  weekdayRu: string;
-  weekdayKy: string;
-  timeRu: string;
-  timeKy: string;
   shortRu: string;
   shortKy: string;
   bookLabelRu: string;
   bookLabelKy: string;
   showInSchedule: boolean;
   bookable: boolean;
-  windowKind: "fixed" | "calendar";
+  /**
+   * Единственный источник графика приёма этого лица — дублируется в
+   * публичную часть (CourtContactsBlock) как есть, без отдельного текста.
+   * Правка — только /admin/my-schedule (сам сотрудник или админ).
+   */
   weekdays: number[];
   startMinutes: number;
   endMinutes: number;

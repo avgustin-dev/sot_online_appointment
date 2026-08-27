@@ -47,15 +47,11 @@ export function resolveTargetWindow(
   calendar: CalendarSettings,
   sc?: ServiceContent | null
 ): { weekdays: number[]; startMinutes: number; endMinutes: number } {
+  // Единственный источник графика для известного лица — его собственные
+  // weekdays/startMinutes/endMinutes (см. LeadershipPerson). Общий календарь
+  // здесь используется только как защитный дефолт при неполных данных.
   const person = peopleOf(sc).find((p) => p.id === targetId);
   if (person) {
-    if (person.windowKind === "calendar") {
-      return {
-        weekdays: calendar.receptionWeekdays,
-        startMinutes: calendar.dayStartMinutes,
-        endMinutes: calendar.dayEndMinutes,
-      };
-    }
     return {
       weekdays: person.weekdays?.length
         ? person.weekdays

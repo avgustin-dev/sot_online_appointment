@@ -15,6 +15,7 @@ export type Permission =
   | "editEligibility"
   | "editAllSchedules"
   | "editOwnSchedule"
+  | "editPlatformCalendar"
   | "editStaffList"
   | "assignExecutor"
   | "changeAssignmentStatus"
@@ -22,8 +23,7 @@ export type Permission =
   | "conductReception"
   | "prepCard"
   | "viewJournal"
-  | "viewAnalytics"
-  | "markAccepted";
+  | "viewAnalytics";
 
 const FULL: Permission[] = [
   "viewInbox",
@@ -38,6 +38,7 @@ const FULL: Permission[] = [
   "editEligibility",
   "editAllSchedules",
   "editOwnSchedule",
+  "editPlatformCalendar",
   "editStaffList",
   "assignExecutor",
   "changeAssignmentStatus",
@@ -46,7 +47,6 @@ const FULL: Permission[] = [
   "prepCard",
   "viewJournal",
   "viewAnalytics",
-  "markAccepted",
 ];
 
 const BY_ROLE: Record<Exclude<Role, "citizen">, Permission[]> = {
@@ -61,8 +61,8 @@ const BY_ROLE: Record<Exclude<Role, "citizen">, Permission[]> = {
     "viewCard",
     "editCitizenData",
     "editContent",
-    "editAllSchedules",
     "editOwnSchedule",
+    "editPlatformCalendar",
     "editStaffList",
     "prepCard",
     "viewJournal",
@@ -73,9 +73,12 @@ const BY_ROLE: Record<Exclude<Role, "citizen">, Permission[]> = {
     "viewCard",
     "editOwnSchedule",
     "assignExecutor",
+    // Только для поручений, где председатель сам себе исполнитель
+    // («Исполнить самому») — фактическая проверка владения поручением
+    // остаётся в storeLocal.ts (setAssignmentStatus/submitFinalAnswer).
+    "changeAssignmentStatus",
     "viewAssignments",
     "conductReception",
-    "markAccepted",
   ],
   responsible: [
     "rescheduleAppointment",
@@ -173,11 +176,16 @@ export function appointmentVisibleTo(
 }
 
 /**
- * Статусы записи по ТЗ §5 (в порядке жизненного цикла):
- * Поступила → Подтверждена → Перенесена → Отменена → Принята → Завершена.
+ * Статусы записи, которые можно выставить вручную из карточки: только
+ * «административные» шаги (Поступила / Подтверждена / Перенесена / Отменена).
  *
- * «Перенесена» также выставляется формой переноса даты/времени
- * (с сохранением прежних даты и слота).
+ * «Принята» и «Завершена» намеренно НЕ входят сюда: это не свободный выбор,
+ * а следствие реального события — «Принята» ставит только completeReception
+ * (после того как приём проведён и протокол заполнен), «Завершена» — только
+ * submitFinalAnswer (после того как исполнитель написал ответ гражданину).
+ * Если разрешить их здесь, можно вручную «завершить» запись, ни разу не
+ * проведя приём и не ответив гражданину — карточка обращения при этом
+ * останется на прежнем этапе, и статус записи разойдётся с этапом карточки.
  */
 export function allowedManualStatuses(
   user: StaffActor | null | undefined,
@@ -197,17 +205,12 @@ export function allowedManualStatuses(
   if (can(user, "cancelAppointment") || can(user, "rejectAppointment")) {
     options.push("cancelled");
   }
-  if (user.role === "admin" || can(user, "markAccepted")) {
-    options.push("accepted", "completed");
-  }
   // Уникальные, в порядке ТЗ
   const order: AppointmentStatus[] = [
     "pending_review",
     "confirmed",
     "rescheduled",
     "cancelled",
-    "accepted",
-    "completed",
   ];
   return order.filter((s) => options.includes(s));
 }

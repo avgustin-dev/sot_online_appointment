@@ -30,6 +30,7 @@ export const SEED_STAFF: StaffUser[] = [
     role: "reception",
     position: "Специалист справочной",
     department: "Общественная приёмная",
+    targetId: "reception",
   },
   {
     id: "u-chair",
@@ -59,16 +60,24 @@ export function ensureSeedStaff(staff: StaffUser[]): StaffUser[] {
   const missing = SEED_STAFF.filter((s) => !logins.has(s.login.toLowerCase()));
   // Демо-учётки не должны остаться без пароля: если у известного демо-логина
   // пароль пуст (например, был затёрт старой версией hydrateStaffSession),
-  // восстанавливаем пароль из сида, чтобы демо-вход не ломался.
+  // восстанавливаем пароль из сида, чтобы демо-вход не ломался. Аналогично
+  // подтягиваем targetId, если в сохранённом штате его ещё нет (например,
+  // справочная получила свой график только в новой версии сида).
   let repaired = false;
   const withPasswords = staff.map((s) => {
-    if (s.password) return s;
     const seedMatch = SEED_STAFF.find(
       (seed) => seed.login.toLowerCase() === s.login.toLowerCase()
     );
     if (!seedMatch) return s;
+    const needsPassword = !s.password;
+    const needsTargetId = !s.targetId && seedMatch.targetId;
+    if (!needsPassword && !needsTargetId) return s;
     repaired = true;
-    return { ...s, password: seedMatch.password };
+    return {
+      ...s,
+      password: needsPassword ? seedMatch.password : s.password,
+      targetId: needsTargetId ? seedMatch.targetId : s.targetId,
+    };
   });
   if (!missing.length && !repaired) return staff;
   return [...withPasswords, ...missing];

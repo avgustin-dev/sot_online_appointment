@@ -141,15 +141,14 @@ export default function StaffDashboardPage() {
     (role === "responsible" && !!myTarget);
   const isExecutorFocus = role === "responsible";
 
-  // Справочная не имеет /admin/control и /admin/reception — ведём в реестр карточек
+  // Справочная не имеет /admin/control — ведём в реестр карточек;
+  // подготовка и приём теперь на самой карточке, открываемой из «Заявки».
   const canOpenControl =
     role === "admin" || role === "leadership" || role === "responsible";
-  const canOpenReception =
-    role === "admin" ||
-    role === "leadership" ||
-    (role === "responsible" && !!myTarget);
+  const canOpenAppeals =
+    role === "admin" || role === "reception" || role === "leadership";
   const controlHref = canOpenControl ? "/admin/control" : "/admin/appeals";
-  const receptionHref = canOpenReception ? "/admin/reception" : "/admin/appeals";
+  const receptionHref = canOpenAppeals ? "/admin/appeals" : "/admin/control";
 
   return (
     <div className="space-y-5">
@@ -407,11 +406,7 @@ export default function StaffDashboardPage() {
           <ul className="divide-y divide-slate-100">
             {todayApts.map((a) => {
               const aplId = appealIdForApt(a.id);
-              const href = aplId
-                ? `/admin/appeals/${aplId}`
-                : showReceptionBlock
-                  ? "/admin/reception"
-                  : "/admin/control";
+              const href = aplId ? `/admin/appeals/${aplId}` : receptionHref;
               return (
                 <li key={a.id}>
                   <Link

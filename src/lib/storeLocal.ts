@@ -25,6 +25,7 @@ import {
 import { isReceptionDate, generateDaySlots, listAvailableDates } from "./slots";
 import { resolveTargetWindow } from "./targets";
 import { assignmentStatusLabel } from "./assignment";
+import { APPEAL_STAGE_MANUAL_TRANSITIONS } from "./constants";
 
 type Err = { ok: false; error: string };
 
@@ -692,6 +693,16 @@ export function wrapLocal(store: LocalStoreApi) {
     ) => {
       const u = requirePerm(store, "prepCard", user);
       if (isErr(u)) return u;
+      const apl = store.getState().appeals.find((a) => a.id === appealId);
+      if (!apl) return { ok: false as const, error: "Карточка не найдена." };
+      if (apl.stage === stage) return { ok: true as const };
+      if (!APPEAL_STAGE_MANUAL_TRANSITIONS[apl.stage].includes(stage)) {
+        return {
+          ok: false as const,
+          error:
+            "Этот переход недоступен вручную: дальнейший этап выставляется действием (приём, ответ, оценка), а не выбором из списка.",
+        };
+      }
       patchApl(store, appealId, { stage });
       pushLog(store, u, `Этап карточки: ${stage}`, "appointment", appealId);
       return { ok: true as const };
@@ -826,14 +837,13 @@ export function wrapLocal(store: LocalStoreApi) {
       if (apl.assignment.responsibleUserId !== u.id && u.role !== "admin") {
         return deny();
       }
+      // Статус поручения — это внутренний прогресс исполнителя, а не этап
+      // обращения: "Исполнено" само по себе не означает, что гражданину
+      // отправлен ответ. Этап "answered" ставит только submitFinalAnswer —
+      // иначе карточка могла закрыться (после оценки гражданина) без единого
+      // слова реального ответа.
       patchApl(store, appealId, {
         assignment: { ...apl.assignment, status },
-        stage:
-          status === "done"
-            ? apl.stage === "in_control"
-              ? "answered"
-              : apl.stage
-            : apl.stage,
       });
       pushLog(
         store,
@@ -857,6 +867,19 @@ export function wrapLocal(store: LocalStoreApi) {
       if (!resp) return { ok: false as const, error: "Сотрудник не найден." };
       const apl = store.getState().appeals.find((a) => a.id === appealId);
       if (!apl) return { ok: false as const, error: "Карточка не найдена." };
+      // Первичное поручение создаётся вместе с протоколом приёма
+      // (completeReception) — там же выставляется stage "in_control", по
+      // которому исполнитель видит карточку в "Поручениях". Это действие —
+      // только переназначение уже принятого обращения на другого сотрудника;
+      // на "сыром" обращении оно оставляло бы поручение, невидимое
+      // исполнителю (этап карточки не сдвигался).
+      if (!["in_control", "answered"].includes(apl.stage)) {
+        return {
+          ok: false as const,
+          error:
+            "Сначала нужно провести личный приём и зафиксировать протокол — поручение появляется вместе с ним.",
+        };
+      }
       const createdAt = nowIso();
       patchApl(store, appealId, {
         assignment: {
@@ -869,7 +892,6 @@ export function wrapLocal(store: LocalStoreApi) {
           status: "assigned",
           createdAt: apl.assignment?.createdAt || createdAt,
         },
-        stage: apl.stage === "registered" ? apl.stage : apl.stage,
       });
       pushLog(
         store,
@@ -900,12 +922,15 @@ export function wrapLocal(store: LocalStoreApi) {
     ) => {
       const u = actor(store, user);
       if (!u) return deny();
-      // Протокол исполнения завершает исполнитель (роль "responsible"), а не
-      // тот, кто назначает поручение ("leadership") — права должны совпадать
-      // с формой в /admin/control (canAnswer).
+      // Протокол исполнения завершает тот, кому поручено (обычно "responsible";
+      // "leadership" — только если сам назначил себя через "Исполнить самому",
+      // см. проверку владения ниже — то же правило, что и в setAssignmentStatus).
       if (!can(u, "changeAssignmentStatus") && u.role !== "admin") return deny();
       const apl = store.getState().appeals.find((a) => a.id === appealId);
       if (!apl) return { ok: false as const, error: "Карточка не найдена." };
+      if (apl.assignment?.responsibleUserId !== u.id && u.role !== "admin") {
+        return deny();
+      }
       patchApl(store, appealId, {
         finalAnswer: answer,
         finalAnswerAt: nowIso(),
@@ -925,14 +950,10 @@ export function wrapLocal(store: LocalStoreApi) {
     },
 
     updateCalendar: async (patch: Partial<CalendarSettings>) => {
-      const u = requirePerm(store, "editAllSchedules");
-      if (isErr(u)) {
-        const own = requirePerm(store, "editOwnSchedule");
-        if (isErr(own)) return own;
-        return { ok: false as const, error: DENIED };
-      }
+      const u = requirePerm(store, "editPlatformCalendar");
+      if (isErr(u)) return u;
       store.setState((s) => ({ calendar: { ...s.calendar, ...patch } }));
-      pushLog(store, u, "Изменение общего графика", "schedule");
+      pushLog(store, u, "Изменение параметров платформы", "schedule");
       return { ok: true as const };
     },
 
@@ -953,7 +974,6 @@ export function wrapLocal(store: LocalStoreApi) {
               weekdays: patch.weekdays,
               startMinutes: patch.startMinutes,
               endMinutes: patch.endMinutes,
-              windowKind: "fixed" as const,
             }
           : p
       );
@@ -962,34 +982,19 @@ export function wrapLocal(store: LocalStoreApi) {
       return { ok: true as const };
     },
 
+    // График приёма (leadership[].weekdays/startMinutes/endMinutes) сюда не
+    // попадает — он меняется только через patchLeadershipSchedule (сотрудник
+    // за себя или админ за любого). Здесь — остальной контент CMS.
     updateServiceContent: async (patch: Partial<ServiceContent>) => {
       const u = actor(store);
-      if (!u) return deny();
-      const onlyOwn =
-        !can(u, "editContent") &&
-        !can(u, "editStaffList") &&
-        can(u, "editOwnSchedule");
-      if (!can(u, "editContent") && !can(u, "editStaffList") && !onlyOwn) {
+      if (!u || (!can(u, "editContent") && !can(u, "editStaffList"))) {
         return deny();
-      }
-      if (onlyOwn) {
-        const mine = u.targetId;
-        const current = store.getState().serviceContent;
-        const nextPeople = (patch.leadership ?? current.leadership).map((p) => {
-          if (p.id !== mine) {
-            return current.leadership.find((x) => x.id === p.id) ?? p;
-          }
-          return p;
-        });
-        store.updateServiceContent({ leadership: nextPeople });
-        pushLog(store, u, "Изменение собственного графика", "schedule", mine);
-        return { ok: true as const };
       }
       store.updateServiceContent(patch);
       pushLog(
         store,
         u,
-        patch.leadership ? "Изменение списка / графика приёма" : "Изменение контента",
+        patch.leadership ? "Изменение списка руководства" : "Изменение контента",
         patch.leadership ? "schedule" : "content"
       );
       return { ok: true as const };

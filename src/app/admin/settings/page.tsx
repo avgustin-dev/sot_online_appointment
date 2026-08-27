@@ -5,67 +5,18 @@ import { useStore } from "@/lib/store";
 import {
   formatDateList,
   generateDaySlots,
-  generateTimeOptions,
-  minutesToTime,
   parseDateList,
-  timeToMinutes,
 } from "@/lib/slots";
 import { Save } from "lucide-react";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Collapsible } from "@/components/ui/Collapsible";
 import { useI18n } from "@/lib/i18n";
 
-const WEEKDAYS = [
-  { v: 1, l: "Понедельник" },
-  { v: 2, l: "Вторник" },
-  { v: 3, l: "Среда" },
-  { v: 4, l: "Четверг" },
-  { v: 5, l: "Пятница" },
-  { v: 6, l: "Суббота" },
-  { v: 0, l: "Воскресенье" },
-];
-
-/** Время 24-часового формата (КР) — select, без AM/PM */
-const TIME_OPTIONS = generateTimeOptions(6 * 60, 22 * 60, 5);
-
-function TimeSelect({
-  label,
-  value,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div>
-      <label className="label">{label}</label>
-      <select
-        className="input font-mono"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-      >
-        {TIME_OPTIONS.map((tm) => (
-          <option key={tm} value={tm}>
-            {tm}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
 export default function SettingsPage() {
   const { state, currentUser, updateCalendar } = useStore();
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
   const cal = state.calendar;
-  const [weekdays, setWeekdays] = useState(cal.receptionWeekdays);
-  const [start, setStart] = useState(minutesToTime(cal.dayStartMinutes));
-  const [end, setEnd] = useState(minutesToTime(cal.dayEndMinutes));
   const [slot, setSlot] = useState(cal.slotDurationMinutes);
   const [brk, setBrk] = useState(cal.breakMinutes);
   const [horizon, setHorizon] = useState(cal.bookingHorizonDays);
@@ -81,9 +32,6 @@ export default function SettingsPage() {
   useEffect(() => {
     if (loadedOnce) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- разовая подгрузка формы после гидратации стора
-    setWeekdays(cal.receptionWeekdays);
-    setStart(minutesToTime(cal.dayStartMinutes));
-    setEnd(minutesToTime(cal.dayEndMinutes));
     setSlot(cal.slotDurationMinutes);
     setBrk(cal.breakMinutes);
     setHorizon(cal.bookingHorizonDays);
@@ -94,34 +42,22 @@ export default function SettingsPage() {
   }, [cal, loadedOnce]);
 
   const canEdit =
-    currentUser &&
-    ["admin", "reception", "leadership"].includes(currentUser.role);
+    currentUser && ["admin", "reception"].includes(currentUser.role);
 
   const preview = useMemo(
     () =>
       generateDaySlots({
         ...cal,
-        dayStartMinutes: timeToMinutes(start),
-        dayEndMinutes: timeToMinutes(end),
         slotDurationMinutes: slot,
         breakMinutes: brk,
       }),
-    [cal, start, end, slot, brk]
+    [cal, slot, brk]
   );
-
-  function toggleDay(v: number) {
-    setWeekdays((prev) =>
-      prev.includes(v) ? prev.filter((d) => d !== v) : [...prev, v].sort()
-    );
-  }
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
     if (!canEdit) return;
     const res = await updateCalendar({
-      receptionWeekdays: weekdays,
-      dayStartMinutes: timeToMinutes(start),
-      dayEndMinutes: timeToMinutes(end),
       slotDurationMinutes: slot,
       breakMinutes: brk,
       bookingHorizonDays: horizon,
@@ -135,8 +71,8 @@ export default function SettingsPage() {
     }
     setMsg(
       isKy
-        ? "График сакталды."
-        : "Параметры графика приёма сохранены."
+        ? "Параметрлер сакталды."
+        : "Параметры записи сохранены."
     );
   }
 
@@ -150,12 +86,12 @@ export default function SettingsPage() {
       />
       <div>
         <h1 className="section-title">
-          {isKy ? "Кабыл алуу графиги" : "График приёма"}
+          {isKy ? "Жазылуу параметрлери" : "Параметры записи"}
         </h1>
         <p className="mt-1 text-sm text-slate-500">
           {isKy
-            ? "Күндөр, убакыт (24 саат), мөөнөттөр. Дата: кк.аа.жжжж"
-            : "Дни приёма, время в 24-часовом формате, интервалы. Даты указываются как дд.мм.гггг."}
+            ? "Слоттун узактыгы, тыныгуу, горизонт жана жабык күндөр. Жеке кабыл алуу графиги (күндөр/саат) — «Графиктер» бөлүмүндө. Дата: кк.аа.жжжж"
+            : "Длительность слота, пауза, горизонт записи и закрытые даты — общие для платформы. Личный график приёма (дни/часы) каждого сотрудника — в разделе «Графики». Даты указываются как дд.мм.гггг."}
         </p>
       </div>
 
@@ -168,44 +104,9 @@ export default function SettingsPage() {
       <form onSubmit={onSave} className="grid gap-5 lg:grid-cols-2">
         <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold text-slate-900">
-            {isKy ? "Күндөр жана убакыт" : "Дни и время приёма"}
+            {isKy ? "Слот жана горизонт" : "Слот и горизонт записи"}
           </h2>
-          <div>
-            <div className="label">
-              {isKy ? "Жума күндөрү" : "Дни недели"}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {WEEKDAYS.map((d) => (
-                <button
-                  key={d.v}
-                  type="button"
-                  disabled={!canEdit}
-                  onClick={() => toggleDay(d.v)}
-                  className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-                    weekdays.includes(d.v)
-                      ? "border-court-navy bg-court-navy text-white"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                  }`}
-                >
-                  {t.calendar.weekdays[d.v]}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
-            <TimeSelect
-              label={isKy ? "Башталышы (24ч)" : "Начало (24ч)"}
-              value={start}
-              onChange={setStart}
-              disabled={!canEdit}
-            />
-            <TimeSelect
-              label={isKy ? "Аякталышы (24ч)" : "Окончание (24ч)"}
-              value={end}
-              onChange={setEnd}
-              disabled={!canEdit}
-            />
             <div>
               <label className="label">
                 {isKy ? "Слот (мүн)" : "Длительность слота (мин)"}

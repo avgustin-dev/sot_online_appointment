@@ -9,7 +9,7 @@ import type { LeadershipPerson, ServiceContent } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { generateId } from "@/lib/utils";
-import { minutesToTime, timeToMinutes } from "@/lib/slots";
+import { minutesToTime } from "@/lib/slots";
 
 function linesToArray(s: string): string[] {
   return s
@@ -22,15 +22,6 @@ function arrayToLines(arr: string[] | undefined): string {
   return (arr ?? []).join("\n");
 }
 
-const WEEKDAYS = [
-  { id: 1, ru: "Пн" },
-  { id: 2, ru: "Вт" },
-  { id: 3, ru: "Ср" },
-  { id: 4, ru: "Чт" },
-  { id: 5, ru: "Пт" },
-  { id: 6, ru: "Сб" },
-  { id: 0, ru: "Вс" },
-];
 
 type Tab = "chrome" | "home" | "leadership" | "book" | "rules";
 
@@ -97,17 +88,13 @@ function emptyPerson(): LeadershipPerson {
     fullNameKy: "",
     positionRu: "",
     positionKy: "",
-    weekdayRu: "",
-    weekdayKy: "",
-    timeRu: "",
-    timeKy: "",
     shortRu: "",
     shortKy: "",
     bookLabelRu: "",
     bookLabelKy: "",
     showInSchedule: true,
     bookable: true,
-    windowKind: "calendar",
+    // Дни/часы задаются позже — сам сотрудник или админ в /admin/my-schedule.
     weekdays: [2, 4],
     startMinutes: 8 * 60,
     endMinutes: 12 * 60,
@@ -117,7 +104,7 @@ function emptyPerson(): LeadershipPerson {
 export default function ContentCmsPage() {
   const { ready, state, currentUser, updateServiceContent, resetServiceContent } =
     useStore();
-  const { lang } = useI18n();
+  const { t, lang } = useI18n();
   const isKy = lang === "ky";
   const canEdit =
     !!currentUser &&
@@ -667,50 +654,6 @@ export default function ContentCmsPage() {
                     disabled={!canEdit}
                   />
                   <Field
-                    label="День приёма — текст (RU)"
-                    value={p.weekdayRu}
-                    onChange={(v) => {
-                      const leadership = draft.leadership.map((x, j) =>
-                        j === i ? { ...x, weekdayRu: v } : x
-                      );
-                      patch({ leadership });
-                    }}
-                    disabled={!canEdit}
-                  />
-                  <Field
-                    label="Күн — текст (KY)"
-                    value={p.weekdayKy}
-                    onChange={(v) => {
-                      const leadership = draft.leadership.map((x, j) =>
-                        j === i ? { ...x, weekdayKy: v } : x
-                      );
-                      patch({ leadership });
-                    }}
-                    disabled={!canEdit}
-                  />
-                  <Field
-                    label="Время — текст (RU)"
-                    value={p.timeRu}
-                    onChange={(v) => {
-                      const leadership = draft.leadership.map((x, j) =>
-                        j === i ? { ...x, timeRu: v } : x
-                      );
-                      patch({ leadership });
-                    }}
-                    disabled={!canEdit}
-                  />
-                  <Field
-                    label="Убакыт — текст (KY)"
-                    value={p.timeKy}
-                    onChange={(v) => {
-                      const leadership = draft.leadership.map((x, j) =>
-                        j === i ? { ...x, timeKy: v } : x
-                      );
-                      patch({ leadership });
-                    }}
-                    disabled={!canEdit}
-                  />
-                  <Field
                     label="Кратко в талоне (RU)"
                     value={p.shortRu}
                     onChange={(v) => {
@@ -786,110 +729,22 @@ export default function ContentCmsPage() {
                     />
                     {isKy ? "Жазылууга ачык" : "Доступен для записи"}
                   </label>
-                  <label className="inline-flex items-center gap-2">
-                    {isKy ? "Терезе" : "Окно слотов"}
-                    <select
-                      className="input !w-auto !py-1"
-                      value={p.windowKind}
-                      disabled={!canEdit}
-                      onChange={(e) => {
-                        const leadership = draft.leadership.map((x, j) =>
-                          j === i
-                            ? {
-                                ...x,
-                                windowKind: e.target.value as
-                                  | "fixed"
-                                  | "calendar",
-                              }
-                            : x
-                        );
-                        patch({ leadership });
-                      }}
-                    >
-                      <option value="fixed">
-                        {isKy ? "Жеке график" : "Личный график"}
-                      </option>
-                      <option value="calendar">
-                        {isKy ? "Жалпы календарь" : "Общий календарь"}
-                      </option>
-                    </select>
-                  </label>
                 </div>
-                {p.windowKind === "fixed" && (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <div className="mb-1 text-xs font-semibold text-slate-600">
-                        {isKy ? "Күндөр" : "Дни недели"}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {WEEKDAYS.map((d) => (
-                          <label
-                            key={d.id}
-                            className="inline-flex items-center gap-1 text-sm"
-                          >
-                            <input
-                              type="checkbox"
-                              disabled={!canEdit}
-                              checked={p.weekdays.includes(d.id)}
-                              onChange={(e) => {
-                                const weekdays = e.target.checked
-                                  ? [...p.weekdays, d.id]
-                                  : p.weekdays.filter((x) => x !== d.id);
-                                const leadership = draft.leadership.map(
-                                  (x, j) => (j === i ? { ...x, weekdays } : x)
-                                );
-                                patch({ leadership });
-                              }}
-                            />
-                            {d.ru}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <label className="text-xs font-semibold text-slate-600">
-                        {isKy ? "Башталышы" : "Начало"}
-                        <input
-                          type="time"
-                          className="input mt-1"
-                          disabled={!canEdit}
-                          value={minutesToTime(p.startMinutes)}
-                          onChange={(e) => {
-                            const leadership = draft.leadership.map((x, j) =>
-                              j === i
-                                ? {
-                                    ...x,
-                                    startMinutes: timeToMinutes(e.target.value),
-                                  }
-                                : x
-                            );
-                            patch({ leadership });
-                          }}
-                        />
-                      </label>
-                      <label className="text-xs font-semibold text-slate-600">
-                        {isKy ? "Аягы" : "Окончание"}
-                        <input
-                          type="time"
-                          className="input mt-1"
-                          disabled={!canEdit}
-                          value={minutesToTime(p.endMinutes)}
-                          onChange={(e) => {
-                            const leadership = draft.leadership.map((x, j) =>
-                              j === i
-                                ? {
-                                    ...x,
-                                    endMinutes: timeToMinutes(e.target.value),
-                                  }
-                                : x
-                            );
-                            patch({ leadership });
-                          }}
-                        />
-                      </label>
-                    </div>
+                <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
+                  <div>
+                    {isKy
+                      ? "Кабыл алуу графиги (күндөр/саат) бул жерден түзөтүлбөйт — аны сотрудниктин өзү жеке кабинетинде же администратор «Графиктер» бөлүмүндө коёт."
+                      : "График приёма (дни/часы) не редактируется здесь — его задаёт сам сотрудник в личном кабинете либо администратор в разделе «Графики»."}
                   </div>
-                )}
+                  <div className="mt-1 font-medium text-slate-800">
+                    {[...p.weekdays]
+                      .sort((a, b) => a - b)
+                      .map((d) => t.calendar.weekdays[d])
+                      .join(", ") || (isKy ? "күндөр коюлган эмес" : "дни не заданы")}
+                    {" · "}
+                    {minutesToTime(p.startMinutes)}–{minutesToTime(p.endMinutes)}
+                  </div>
+                </div>
               </section>
             ))}
 

@@ -5,16 +5,16 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   Bell,
-  ClipboardList,
   History,
-  UserCheck,
-  Save,
   Ban,
   RotateCcw,
+  CalendarClock,
+  Send,
+  UserCheck,
+  ClipboardList,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { StageBadge, StatusBadge } from "@/components/ui/Badge";
-import type { AppealCategory, AppealStage, AppointmentStatus } from "@/lib/types";
 import { formatDateRu } from "@/lib/slots";
 import { stageProgress, cn } from "@/lib/utils";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
@@ -24,24 +24,30 @@ import { ReviewRequestPanel } from "@/components/staff/ReviewRequestPanel";
 import { targetPerson, targetShort } from "@/lib/targets";
 import { SlotPicker } from "@/components/booking/SlotPicker";
 import { assignmentStatusLabel } from "@/lib/assignment";
-import { allowedManualStatuses, can } from "@/lib/acl";
+import { can } from "@/lib/acl";
+import type { AppealCategory } from "@/lib/types";
 
+/**
+ * Карточка обращения — информация + компактные действия по этапам:
+ * подготовка (справочная), личный приём с протоколом и первым поручением
+ * (руководство), затем поручить/исполнить самому (после приёма), перенос и
+ * отмена записи. Смена статуса записи и этапа обращения вручную больше не
+ * нужна: каждый статус/этап наступает как следствие настоящего действия
+ * (подтверждение, приём, ответ, оценка) — см. историю правок статусов.
+ */
 export default function AppealDetailPage() {
   const params = useParams();
   const id = String(params.id || "");
   const {
     state,
     currentUser,
-    startPrep,
-    completePrep,
     getPreviousAppeals,
     staffCancelAppointment,
     staffRestoreAppointment,
-    staffSetAppointmentStatus,
     staffRescheduleAppointment,
-    staffUpdateCitizenData,
-    staffSetAppealStage,
     assignAppeal,
+    completePrep,
+    completeReception,
   } = useStore();
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
@@ -54,49 +60,43 @@ export default function AppealDetailPage() {
     () => (appeal ? getPreviousAppeals(appeal) : []),
     [appeal, getPreviousAppeals]
   );
-  const manualStatusOptions = useMemo(
-    () => (appointment ? allowedManualStatuses(currentUser, appointment) : []),
-    [currentUser, appointment]
-  );
 
-  const [summary, setSummary] = useState("");
-  const [prepNotes, setPrepNotes] = useState("");
-  const [category, setCategory] = useState<AppealCategory>("organization");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  // edit citizen
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [topic, setTopic] = useState("");
-  const [description, setDescription] = useState("");
-  const [editCategory, setEditCategory] = useState<AppealCategory>("organization");
+  // назначение поручения
+  const [assignMode, setAssignMode] = useState<null | "pick">(null);
+  const [assignId, setAssignId] = useState("");
+  const [assignText, setAssignText] = useState("");
 
-  // reschedule
+  // перенос записи
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [newDate, setNewDate] = useState("");
   const [newSlotStart, setNewSlotStart] = useState("");
   const [newSlotEnd, setNewSlotEnd] = useState("");
-  const [stageSelect, setStageSelect] = useState<AppealStage>("registered");
-  const [statusSelect, setStatusSelect] = useState<AppointmentStatus>("confirmed");
-  const [assignId, setAssignId] = useState("");
-  const [assignText, setAssignText] = useState("");
+
+  // подготовка карточки
+  const [prepOpen, setPrepOpen] = useState(false);
+  const [summary, setSummary] = useState("");
+  const [prepNotes, setPrepNotes] = useState("");
+  const [prepCategory, setPrepCategory] = useState<AppealCategory>("organization");
+
+  // протокол личного приёма
+  const [protocolOpen, setProtocolOpen] = useState(false);
+  const [leadershipExplanation, setLeadershipExplanation] = useState("");
+  const [assignmentText, setAssignmentText] = useState("");
+  const [responsibleUserId, setResponsibleUserId] = useState("");
+  const [specialistsInvolved, setSpecialistsInvolved] = useState("");
 
   useEffect(() => {
     if (!appeal) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- подгрузка формы при смене карточки/её обновлении
-    setSummary(appeal.summary || "");
-    setPrepNotes(appeal.prepNotes || "");
-    setCategory(appeal.category);
-    setEditCategory(appeal.category);
-    setFullName(appeal.fullName);
-    setPhone(appeal.phone);
-    setEmail(appeal.email || "");
-    setTopic(appeal.topic);
-    setDescription(appeal.summary || "");
-    setStageSelect(appeal.stage);
     setAssignId(appeal.assignment?.responsibleUserId || "");
     setAssignText(appeal.assignment?.text || "");
+    setSummary(appeal.summary || "");
+    setPrepNotes(appeal.prepNotes || "");
+    setPrepCategory(appeal.category);
   }, [appeal?.id, appeal?.updatedAt]);
 
   useEffect(() => {
@@ -105,7 +105,6 @@ export default function AppealDetailPage() {
     setNewDate(appointment.date);
     setNewSlotStart(appointment.slotStart);
     setNewSlotEnd(appointment.slotEnd);
-    setStatusSelect(appointment.status);
   }, [appointment?.id, appointment?.updatedAt]);
 
   if (!appeal) {
@@ -153,77 +152,116 @@ export default function AppealDetailPage() {
   }
 
   const progress = stageProgress(appeal.stage);
-  const canManage =
-    !!currentUser &&
-    ["reception", "admin", "leadership"].includes(currentUser.role);
-  const statusSelectValue: AppointmentStatus | "" = manualStatusOptions.includes(
-    statusSelect
-  )
-    ? statusSelect
-    : manualStatusOptions[0] || "";
-  const canAssign =
+  const canAssignRole =
     !!currentUser &&
     (currentUser.role === "leadership" || currentUser.role === "admin");
-  const canChangeStage = can(currentUser, "prepCard");
+  // Поручение появляется вместе с протоколом приёма; здесь — только
+  // поручить/переназначить уже принятое обращение (в т.ч. себе), иначе
+  // поручение осталось бы невидимым исполнителю.
+  const canAssign =
+    canAssignRole && ["in_control", "answered"].includes(appeal.stage);
+  const canCancel = !!currentUser && can(currentUser, "cancelAppointment");
+  const canReschedule =
+    !!currentUser && can(currentUser, "rescheduleAppointment");
+  const responsibles = state.staff.filter((s) => s.role === "responsible");
+
   const canPrep =
-    canChangeStage &&
+    can(currentUser, "prepCard") &&
     ["registered", "under_review"].includes(appeal.stage) &&
     appointment?.status !== "pending_review" &&
     appointment?.status !== "rejected";
+  const canConductReception =
+    can(currentUser, "conductReception") &&
+    can(currentUser, "assignExecutor") &&
+    appeal.stage === "ready_for_reception";
 
   function flash(ok: boolean, text: string) {
     setErr(!ok);
     setMsg(text);
   }
 
-  async function onStartPrep() {
-    if (!currentUser || !appeal) return;
-    const res = await startPrep(appeal.id, currentUser);
+  async function onAssignSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!appeal || !assignId) return;
+    const resp = state.staff.find((s) => s.id === assignId);
+    if (!resp) return;
+    setBusy(true);
+    const res = await assignAppeal(
+      appeal.id,
+      resp.id,
+      resp.fullName,
+      assignText.trim() || appeal.assignment?.text || "Поручение"
+    );
+    setBusy(false);
     flash(
       Boolean(res?.ok),
-      res?.ok
-        ? "Переведено в предварительное изучение."
-        : res?.error || "Не удалось сохранить"
+      res?.ok ? "Исполнитель назначен." : res?.error || "Ошибка"
+    );
+    if (res?.ok) setAssignMode(null);
+  }
+
+  async function onSelfAssign() {
+    if (!appeal || !currentUser) return;
+    setBusy(true);
+    const res = await assignAppeal(
+      appeal.id,
+      currentUser.id,
+      currentUser.fullName,
+      appeal.assignment?.text || "Принято к исполнению лично."
+    );
+    setBusy(false);
+    flash(
+      Boolean(res?.ok),
+      res?.ok ? "Вы назначены исполнителем." : res?.error || "Ошибка"
     );
   }
 
-  async function onCompletePrep(e: React.FormEvent) {
+  async function onPrepSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!currentUser || !appeal) return;
+    setBusy(true);
     const res = await completePrep(appeal.id, currentUser, {
       summary,
       prepNotes,
-      category,
+      category: prepCategory,
     });
+    setBusy(false);
     flash(
       Boolean(res?.ok),
       res?.ok
         ? "Подготовка завершена. Готово к личному приёму."
         : res?.error || "Не удалось сохранить"
     );
+    if (res?.ok) setPrepOpen(false);
   }
 
-  async function onSaveCitizen(e: React.FormEvent) {
+  async function onProtocolSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!currentUser || !appointment) return;
-    const res = await staffUpdateCitizenData(
-      appointment.id,
-      {
-        fullName,
-        phone,
-        email,
-        topic,
-        category: editCategory,
-        description,
-      },
-      currentUser
-    );
-    flash(res.ok, res.ok ? "Данные сохранены." : res.error);
+    if (!currentUser || !appeal) return;
+    const resp = state.staff.find((s) => s.id === responsibleUserId);
+    if (!resp) return;
+    setBusy(true);
+    const res = await completeReception(appeal.id, currentUser, {
+      citizenStatement: "",
+      leadershipExplanation,
+      assignmentText,
+      responsibleUserId: resp.id,
+      responsibleName: resp.fullName,
+      specialistsInvolved,
+    });
+    setBusy(false);
+    if (res && "ok" in res && !res.ok) {
+      flash(false, res.error);
+      return;
+    }
+    flash(true, "Приём зафиксирован. Поручение передано на контроль.");
+    setProtocolOpen(false);
   }
 
   async function onReschedule(e: React.FormEvent) {
     e.preventDefault();
     if (!currentUser || !appointment) return;
+    setBusy(true);
     const res = await staffRescheduleAppointment(
       appointment.id,
       newDate,
@@ -231,35 +269,9 @@ export default function AppealDetailPage() {
       newSlotEnd,
       currentUser
     );
+    setBusy(false);
     flash(res.ok, res.ok ? "Дата и время приёма обновлены." : res.error);
-  }
-
-  async function onStage(e: React.FormEvent) {
-    e.preventDefault();
-    if (!currentUser || !appeal) return;
-    const res = await staffSetAppealStage(appeal.id, stageSelect, currentUser);
-    flash(
-      res.ok,
-      res.ok
-        ? `${isKy ? "Этап" : "Этап"}: ${t.stages[stageSelect]}`
-        : res.error
-    );
-  }
-
-  async function onStatus(e: React.FormEvent) {
-    e.preventDefault();
-    if (!currentUser || !appointment || !statusSelectValue) return;
-    const res = await staffSetAppointmentStatus(
-      appointment.id,
-      statusSelectValue,
-      currentUser
-    );
-    flash(
-      res.ok,
-      res.ok
-        ? `${isKy ? "Жазылуу статусу" : "Статус записи"}: ${t.statuses[statusSelectValue]}`
-        : res.error
-    );
+    if (res.ok) setRescheduleOpen(false);
   }
 
   return (
@@ -389,29 +401,32 @@ export default function AppealDetailPage() {
                   {appeal.assignment.text}
                 </p>
               )}
-              {canAssign && (
+              {canAssign && assignMode !== "pick" && (
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => setAssignMode("pick")}
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    Поручить
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-court-navy px-3 py-2 text-xs font-semibold text-white hover:bg-court-navy/90 disabled:opacity-60"
+                    onClick={onSelfAssign}
+                  >
+                    <UserCheck className="h-3.5 w-3.5" />
+                    Исполнить самому
+                  </button>
+                </div>
+              )}
+              {canAssign && assignMode === "pick" && (
                 <form
                   className="mt-3 space-y-2 border-t border-slate-100 pt-3"
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    if (!assignId) return;
-                    const resp = state.staff.find((s) => s.id === assignId);
-                    if (!resp) return;
-                    const res = await assignAppeal(
-                      appeal.id,
-                      resp.id,
-                      resp.fullName,
-                      assignText.trim() || appeal.assignment?.text || "Поручение"
-                    );
-                    flash(
-                      Boolean(res?.ok),
-                      res?.ok ? "Исполнитель назначен." : res?.error || "Ошибка"
-                    );
-                  }}
+                  onSubmit={onAssignSubmit}
                 >
-                  <div className="text-[11px] font-semibold uppercase text-slate-400">
-                    Назначить исполнителя
-                  </div>
                   <select
                     className="input w-full"
                     value={assignId}
@@ -419,13 +434,11 @@ export default function AppealDetailPage() {
                     required
                   >
                     <option value="">Выберите ФИО сотрудника</option>
-                    {state.staff
-                      .filter((s) => s.role === "responsible")
-                      .map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.fullName} — {s.position}
-                        </option>
-                      ))}
+                    {responsibles.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.fullName} — {s.position}
+                      </option>
+                    ))}
                   </select>
                   <textarea
                     className="input min-h-[64px] w-full"
@@ -433,10 +446,31 @@ export default function AppealDetailPage() {
                     onChange={(e) => setAssignText(e.target.value)}
                     placeholder="Содержание поручения"
                   />
-                  <button type="submit" className="btn-primary !text-sm">
-                    Назначить
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="submit"
+                      disabled={busy}
+                      className="btn-primary !text-sm"
+                    >
+                      Поручить
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-outline !text-sm"
+                      onClick={() => setAssignMode(null)}
+                    >
+                      Отмена
+                    </button>
+                  </div>
                 </form>
+              )}
+              {canAssignRole && !canAssign && (
+                <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                  Поручение появляется вместе с протоколом личного приёма —
+                  сначала нажмите «Провести приём» в блоке «Действия» ниже.
+                  Здесь можно только поручить (или переназначить) уже
+                  принятое обращение.
+                </p>
               )}
             </div>
           </div>
@@ -482,84 +516,92 @@ export default function AppealDetailPage() {
         </div>
       </div>
 
-      {/* Quick actions — always visible */}
-      {canManage && appointment && (
+      {appointment &&
+        (canCancel || canReschedule || canPrep || canConductReception) && (
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-slate-900">
             Действия
           </h2>
           <div className="flex flex-wrap gap-2">
-            {appointment.status !== "cancelled" &&
-              appointment.status !== "accepted" &&
-              appointment.status !== "completed" && (
-                <>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-100"
-                    onClick={async () => {
-                      if (
-                        !currentUser ||
-                        !confirm("Отменить запись и обращение?")
-                      )
-                        return;
-                      const r = await staffCancelAppointment(
-                        appointment.id,
-                        currentUser
-                      );
-                      flash(r.ok, r.ok ? "Запись отменена." : r.error);
-                    }}
-                  >
-                    <Ban className="h-3.5 w-3.5" />
-                    Отменить запись
-                  </button>
-                </>
-              )}
-            {(appointment.status === "cancelled" ||
-              appointment.status === "no_show" ||
-              appointment.status === "rejected") && (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
-                onClick={async () => {
-                  if (!currentUser) return;
-                  const r = await staffRestoreAppointment(
-                    appointment.id,
-                    currentUser
-                  );
-                  flash(
-                    r.ok,
-                    r.ok
-                      ? "Запись возвращена в статус «Поступила»."
-                      : r.error
-                  );
-                }}
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Вернуть в регистрацию
-              </button>
-            )}
-            {appeal.stage === "registered" && (
+            {canPrep && !prepOpen && (
               <button
                 type="button"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-court-navy px-3 py-2 text-xs font-semibold text-white hover:bg-court-navy/90"
-                onClick={onStartPrep}
+                onClick={() => setPrepOpen(true)}
               >
-                Начать подготовку
+                <ClipboardList className="h-3.5 w-3.5" />
+                Подготовить карточку
               </button>
             )}
-            {appeal.stage === "ready_for_reception" &&
-              currentUser &&
-              ["admin", "leadership", "reception", "responsible"].includes(
-                currentUser.role
-              ) &&
-              (currentUser.role !== "reception" ? (
-                <Link
-                  href="/admin/reception"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-court-navy px-3 py-2 text-xs font-semibold text-white"
+            {canConductReception && !protocolOpen && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-court-navy px-3 py-2 text-xs font-semibold text-white hover:bg-court-navy/90"
+                onClick={() => setProtocolOpen(true)}
+              >
+                <UserCheck className="h-3.5 w-3.5" />
+                Провести приём
+              </button>
+            )}
+            {canCancel &&
+              appointment.status !== "cancelled" &&
+              appointment.status !== "accepted" &&
+              appointment.status !== "completed" && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-100"
+                  onClick={async () => {
+                    if (
+                      !currentUser ||
+                      !confirm("Отменить запись и обращение?")
+                    )
+                      return;
+                    const r = await staffCancelAppointment(
+                      appointment.id,
+                      currentUser
+                    );
+                    flash(r.ok, r.ok ? "Запись отменена." : r.error);
+                  }}
                 >
-                  К приёму
-                </Link>
-              ) : null)}
+                  <Ban className="h-3.5 w-3.5" />
+                  Отменить запись
+                </button>
+              )}
+            {canCancel &&
+              (appointment.status === "cancelled" ||
+                appointment.status === "no_show" ||
+                appointment.status === "rejected") && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
+                  onClick={async () => {
+                    if (!currentUser) return;
+                    const r = await staffRestoreAppointment(
+                      appointment.id,
+                      currentUser
+                    );
+                    flash(
+                      r.ok,
+                      r.ok
+                        ? "Запись возвращена в статус «Поступила»."
+                        : r.error
+                    );
+                  }}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Вернуть в регистрацию
+                </button>
+              )}
+            {canReschedule && !rescheduleOpen && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => setRescheduleOpen(true)}
+              >
+                <CalendarClock className="h-3.5 w-3.5" />
+                Перенести запись
+              </button>
+            )}
             {appeal.stage === "in_control" &&
               currentUser &&
               ["admin", "leadership", "responsible"].includes(
@@ -573,6 +615,163 @@ export default function AppealDetailPage() {
                 </Link>
               )}
           </div>
+
+          {canReschedule && rescheduleOpen && (
+            <form
+              onSubmit={onReschedule}
+              className="mt-4 space-y-3 border-t border-slate-100 pt-4"
+            >
+              <SlotPicker
+                date={newDate}
+                slotStart={newSlotStart}
+                onDateChange={(d) => {
+                  setNewDate(d);
+                  setNewSlotStart("");
+                  setNewSlotEnd("");
+                }}
+                onSlotChange={(s, e) => {
+                  setNewSlotStart(s);
+                  setNewSlotEnd(e);
+                }}
+                excludeAppointmentId={appointment.id}
+                targetId={appointment.targetId}
+              />
+              <p className="text-[11px] text-slate-400">
+                Сейчас: {formatDateRu(appointment.date)}{" "}
+                {appointment.slotStart}–{appointment.slotEnd}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button type="submit" disabled={busy} className="btn-outline !text-sm">
+                  Перенести
+                </button>
+                <button
+                  type="button"
+                  className="btn-outline !text-sm"
+                  onClick={() => setRescheduleOpen(false)}
+                >
+                  Отмена
+                </button>
+              </div>
+            </form>
+          )}
+
+          {canPrep && prepOpen && (
+            <form
+              onSubmit={onPrepSubmit}
+              className="mt-4 space-y-3 border-t border-slate-100 pt-4"
+            >
+              <div>
+                <label className="label">Категория</label>
+                <select
+                  className="input w-full"
+                  value={prepCategory}
+                  onChange={(e) =>
+                    setPrepCategory(e.target.value as AppealCategory)
+                  }
+                >
+                  {(Object.keys(t.categories) as AppealCategory[]).map((k) => (
+                    <option key={k} value={k}>
+                      {t.categories[k]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Краткое содержание (для руководства)</label>
+                <textarea
+                  className="input min-h-[72px] w-full"
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">Заметки подготовки</label>
+                <textarea
+                  className="input min-h-[88px] w-full"
+                  value={prepNotes}
+                  onChange={(e) => setPrepNotes(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="submit" disabled={busy} className="btn-gold !text-sm">
+                  Завершить подготовку
+                </button>
+                <button
+                  type="button"
+                  className="btn-outline !text-sm"
+                  onClick={() => setPrepOpen(false)}
+                >
+                  Отмена
+                </button>
+              </div>
+            </form>
+          )}
+
+          {canConductReception && protocolOpen && (
+            <form
+              onSubmit={onProtocolSubmit}
+              className="mt-4 space-y-3 border-t border-slate-100 pt-4"
+            >
+              <div>
+                <label className="label">Разъяснение руководства</label>
+                <textarea
+                  className="input min-h-[70px] w-full"
+                  value={leadershipExplanation}
+                  onChange={(e) => setLeadershipExplanation(e.target.value)}
+                  placeholder="Разъяснение в соответствии с законодательством КР (необязательно)…"
+                />
+              </div>
+              <div>
+                <label className="label">Поручение</label>
+                <textarea
+                  className="input min-h-[60px] w-full"
+                  value={assignmentText}
+                  onChange={(e) => setAssignmentText(e.target.value)}
+                  required
+                  placeholder="Содержание поручения ответственному…"
+                />
+              </div>
+              <div>
+                <label className="label">Ответственный по обращению</label>
+                <select
+                  className="input w-full"
+                  value={responsibleUserId}
+                  onChange={(e) => setResponsibleUserId(e.target.value)}
+                  required
+                >
+                  <option value="">— выберите —</option>
+                  {responsibles.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.fullName} — {r.position}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Привлечённые специалисты</label>
+                <input
+                  className="input w-full"
+                  value={specialistsInvolved}
+                  onChange={(e) => setSpecialistsInvolved(e.target.value)}
+                  placeholder="ФИО, подразделение"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="submit" disabled={busy} className="btn-primary !text-sm">
+                  Зафиксировать протокол
+                </button>
+                <button
+                  type="button"
+                  className="btn-outline !text-sm"
+                  onClick={() => setProtocolOpen(false)}
+                >
+                  Отмена
+                </button>
+              </div>
+            </form>
+          )}
         </section>
       )}
 
@@ -582,285 +781,38 @@ export default function AppealDetailPage() {
             title="Карточка гражданина"
             subtitle="ФИО, контакты и тема обращения"
             defaultOpen
-            badge={
-              <ClipboardList className="h-4 w-4 text-slate-400" />
-            }
           >
-            {canManage && appointment ? (
-              <form onSubmit={onSaveCitizen} className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block space-y-1">
-                    <span className="text-xs font-semibold text-slate-600">
-                      ФИО
-                    </span>
-                    <input
-                      className="input w-full"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      required
-                    />
-                  </label>
-                  <label className="block space-y-1">
-                    <span className="text-xs font-semibold text-slate-600">
-                      Телефон
-                    </span>
-                    <input
-                      className="input w-full"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      required
-                    />
-                  </label>
-                  <label className="block space-y-1">
-                    <span className="text-xs font-semibold text-slate-600">
-                      Email
-                    </span>
-                    <input
-                      className="input w-full"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </label>
-                  <label className="block space-y-1">
-                    <span className="text-xs font-semibold text-slate-600">
-                      Категория
-                    </span>
-                    <select
-                      className="input w-full"
-                      value={editCategory}
-                      onChange={(e) =>
-                        setEditCategory(e.target.value as AppealCategory)
-                      }
-                    >
-                      {(Object.keys(t.categories) as AppealCategory[]).map(
-                        (k) => (
-                          <option key={k} value={k}>
-                            {t.categories[k]}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </label>
-                  <label className="block space-y-1 sm:col-span-2">
-                    <span className="text-xs font-semibold text-slate-600">
-                      Тема
-                    </span>
-                    <input
-                      className="input w-full"
-                      value={topic}
-                      onChange={(e) => setTopic(e.target.value)}
-                      required
-                    />
-                  </label>
-                  <label className="block space-y-1 sm:col-span-2">
-                    <span className="text-xs font-semibold text-slate-600">
-                      Содержание / описание
-                    </span>
-                    <textarea
-                      className="input min-h-[72px] w-full"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                    />
-                  </label>
-                </div>
-                <button type="submit" className="btn-primary !text-sm">
-                  <Save className="h-4 w-4" />
-                  Сохранить данные
-                </button>
-              </form>
-            ) : (
-              <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                <div>
-                  <dt className="text-xs text-slate-500">Тема</dt>
-                  <dd className="font-medium">{appeal.topic}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-slate-500">Категория</dt>
-                  <dd className="font-medium">
-                    {t.categories[appeal.category]}
-                  </dd>
-                </div>
-                <div className="sm:col-span-2">
-                  <dt className="text-xs text-slate-500">Содержание</dt>
-                  <dd>{appeal.summary}</dd>
-                </div>
-              </dl>
-            )}
-          </Collapsible>
-
-          {canManage && appointment && (
-            <Collapsible
-              title="Дата, время и статусы"
-              subtitle="Перенос записи, изменение статуса и этапа"
-              defaultOpen
-            >
-              <div className="space-y-5">
-                <form onSubmit={onReschedule} className="space-y-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Перенос приёма
-                  </h3>
-                  <SlotPicker
-                    date={newDate}
-                    slotStart={newSlotStart}
-                    onDateChange={(d) => {
-                      setNewDate(d);
-                      setNewSlotStart("");
-                      setNewSlotEnd("");
-                    }}
-                    onSlotChange={(s, e) => {
-                      setNewSlotStart(s);
-                      setNewSlotEnd(e);
-                    }}
-                    excludeAppointmentId={appointment.id}
-                    targetId={appointment.targetId}
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    Сейчас: {formatDateRu(appointment.date)}{" "}
-                    {appointment.slotStart}–{appointment.slotEnd}
-                  </p>
-                  <button type="submit" className="btn-outline !text-sm">
-                    Перенести
-                  </button>
-                </form>
-
-                {manualStatusOptions.length > 0 ? (
-                  <form
-                    onSubmit={onStatus}
-                    className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4"
-                  >
-                    <label className="block min-w-[180px] flex-1 space-y-1">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Статус записи
-                      </span>
-                      <select
-                        className="input w-full"
-                        value={statusSelectValue}
-                        onChange={(e) =>
-                          setStatusSelect(e.target.value as AppointmentStatus)
-                        }
-                      >
-                        {manualStatusOptions.map((k) => (
-                          <option key={k} value={k}>
-                            {t.statuses[k]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button type="submit" className="btn-outline !text-sm">
-                      Применить статус
-                    </button>
-                  </form>
-                ) : (
-                  <p className="border-t border-slate-100 pt-4 text-xs text-slate-400">
-                    Нет статусов, доступных для смены вашей ролью на этом этапе.
-                    Перенос записи — форма выше.
-                  </p>
-                )}
-
-                {canChangeStage ? (
-                  <form
-                    onSubmit={onStage}
-                    className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4"
-                  >
-                    <label className="block min-w-[220px] flex-1 space-y-1">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Этап обращения
-                      </span>
-                      <select
-                        className="input w-full"
-                        value={stageSelect}
-                        onChange={(e) =>
-                          setStageSelect(e.target.value as AppealStage)
-                        }
-                      >
-                        {(Object.keys(t.stages) as AppealStage[]).map(
-                          (k) => (
-                            <option key={k} value={k}>
-                              {t.stages[k]}
-                            </option>
-                          )
-                        )}
-                      </select>
-                    </label>
-                    <button type="submit" className="btn-outline !text-sm">
-                      Сменить этап
-                    </button>
-                  </form>
-                ) : (
-                  <p className="border-t border-slate-100 pt-4 text-xs text-slate-400">
-                    Смена этапа обращения доступна отделу по работе с
-                    гражданами и администратору.
-                  </p>
-                )}
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs text-slate-500">ФИО</dt>
+                <dd className="font-medium">{appeal.fullName}</dd>
               </div>
-            </Collapsible>
-          )}
-
-          {canPrep && (
-            <Collapsible
-              title="Подготовка"
-              subtitle="Предварительное изучение материалов для руководства"
-              defaultOpen={appeal.stage === "under_review"}
-              badge={<UserCheck className="h-4 w-4 text-slate-400" />}
-            >
-              {appeal.stage === "registered" && (
-                <button
-                  type="button"
-                  className="btn-primary mb-4 !text-sm"
-                  onClick={onStartPrep}
-                >
-                  Начать изучение
-                </button>
+              <div>
+                <dt className="text-xs text-slate-500">Телефон</dt>
+                <dd className="font-medium">{appeal.phone}</dd>
+              </div>
+              {appeal.email && (
+                <div>
+                  <dt className="text-xs text-slate-500">Email</dt>
+                  <dd className="font-medium">{appeal.email}</dd>
+                </div>
               )}
-              <form onSubmit={onCompletePrep} className="space-y-3">
-                <label className="block space-y-1">
-                  <span className="text-xs font-semibold text-slate-600">
-                    Категория
-                  </span>
-                  <select
-                    className="input w-full"
-                    value={category}
-                    onChange={(e) =>
-                      setCategory(e.target.value as AppealCategory)
-                    }
-                  >
-                    {(Object.keys(t.categories) as AppealCategory[]).map(
-                      (k) => (
-                        <option key={k} value={k}>
-                          {t.categories[k]}
-                        </option>
-                      )
-                    )}
-                  </select>
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs font-semibold text-slate-600">
-                    Краткое содержание (для руководства)
-                  </span>
-                  <textarea
-                    className="input min-h-[72px] w-full"
-                    value={summary}
-                    onChange={(e) => setSummary(e.target.value)}
-                    required
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs font-semibold text-slate-600">
-                    Заметки подготовки
-                  </span>
-                  <textarea
-                    className="input min-h-[88px] w-full"
-                    value={prepNotes}
-                    onChange={(e) => setPrepNotes(e.target.value)}
-                    required
-                  />
-                </label>
-                <button type="submit" className="btn-gold !text-sm">
-                  Завершить подготовку
-                </button>
-              </form>
-            </Collapsible>
-          )}
+              <div>
+                <dt className="text-xs text-slate-500">Категория</dt>
+                <dd className="font-medium">
+                  {t.categories[appeal.category]}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-xs text-slate-500">Тема</dt>
+                <dd className="font-medium">{appeal.topic}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-xs text-slate-500">Содержание</dt>
+                <dd>{appeal.summary}</dd>
+              </div>
+            </dl>
+          </Collapsible>
 
           {appeal.prepNotes && (
             <Collapsible title="Материалы подготовки" defaultOpen={false}>

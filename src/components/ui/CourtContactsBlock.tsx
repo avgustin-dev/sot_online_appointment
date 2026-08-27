@@ -3,7 +3,9 @@
 import { MapPin, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
+import { useI18n } from "@/lib/i18n";
 import { mergeServiceContent, pickLocale } from "@/lib/serviceContent";
+import { minutesToTime } from "@/lib/slots";
 
 /** Контакты и график руководства — из CMS публичного сайта */
 export function CourtContactsBlock({
@@ -18,9 +20,11 @@ export function CourtContactsBlock({
   className?: string;
 }) {
   const { state } = useStore();
+  const { t } = useI18n();
   const sc = mergeServiceContent(state.serviceContent);
   const c = sc.contacts;
   const schedule = sc.leadership.filter((row) => row.showInSchedule);
+  const weekdayNames = t.calendar.weekdays;
 
   return (
     <div
@@ -115,10 +119,13 @@ export function CourtContactsBlock({
                     {pickLocale(isKy, row.positionRu, row.positionKy)}
                   </td>
                   <td className="px-2 py-2.5 align-top text-sm">
-                    {pickLocale(isKy, row.weekdayRu, row.weekdayKy)}
+                    {[...row.weekdays]
+                      .sort((a, b) => a - b)
+                      .map((d) => weekdayNames[d])
+                      .join(", ")}
                   </td>
                   <td className="px-2 py-2.5 align-top text-xs tabular-nums text-slate-700">
-                    {pickLocale(isKy, row.timeRu, row.timeKy)}
+                    {minutesToTime(row.startMinutes)}–{minutesToTime(row.endMinutes)}
                   </td>
                 </tr>
               ))}
