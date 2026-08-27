@@ -3,7 +3,6 @@ import type { Appointment, AppointmentStatus, Role, StaffUser } from "./types";
 export type StaffActor = Pick<StaffUser, "id" | "role" | "targetId" | "fullName">;
 
 export type Permission =
-  | "viewInbox"
   | "confirmAppointment"
   | "rejectAppointment"
   | "cancelAppointment"
@@ -26,7 +25,6 @@ export type Permission =
   | "viewAnalytics";
 
 const FULL: Permission[] = [
-  "viewInbox",
   "confirmAppointment",
   "rejectAppointment",
   "cancelAppointment",
@@ -52,7 +50,6 @@ const FULL: Permission[] = [
 const BY_ROLE: Record<Exclude<Role, "citizen">, Permission[]> = {
   admin: FULL,
   reception: [
-    "viewInbox",
     "confirmAppointment",
     "rejectAppointment",
     "cancelAppointment",
@@ -90,9 +87,9 @@ const BY_ROLE: Record<Exclude<Role, "citizen">, Permission[]> = {
 };
 
 export const ROLE_LABEL: Record<string, { ru: string; ky: string }> = {
-  reception: { ru: "Справочная", ky: "Маалымдама" },
+  reception: { ru: "Приёмная", ky: "Кабыл алуу" },
   leadership: { ru: "Председатель", ky: "Төрага" },
-  responsible: { ru: "Исполнитель", ky: "Аткаруучу" },
+  responsible: { ru: "Зам. Председателя", ky: "Орун басар" },
   admin: { ru: "Администратор", ky: "Администратор" },
 };
 
@@ -108,8 +105,8 @@ export const DEMO_ACCOUNTS = [
     login: "spravochnaya",
     password: "1111",
     role: "reception" as const,
-    labelRu: "Справочная",
-    labelKy: "Маалымдама",
+    labelRu: "Приёмная",
+    labelKy: "Кабыл алуу",
   },
   {
     login: "predsedatel",
@@ -122,8 +119,8 @@ export const DEMO_ACCOUNTS = [
     login: "ispolnitel",
     password: "1111",
     role: "responsible" as const,
-    labelRu: "Исполнитель",
-    labelKy: "Аткаруучу",
+    labelRu: "Зам. Председателя",
+    labelKy: "Орун басар",
   },
 ];
 

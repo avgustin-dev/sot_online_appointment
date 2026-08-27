@@ -18,7 +18,6 @@ import {
   ExternalLink,
   GitBranch,
   BookOpen,
-  Inbox,
   CalendarClock,
   ScrollText,
   PanelLeftClose,
@@ -31,7 +30,7 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import { LangSwitch } from "@/components/ui/LangSwitch";
 import { useI18n } from "@/lib/i18n";
 import { EmblemKR } from "@/components/brand/Emblem";
-import { can } from "@/lib/acl";
+import { can, roleLabel as roleLabelText } from "@/lib/acl";
 import {
   AdminChromeProvider,
   useAdminChrome,
@@ -108,19 +107,12 @@ function StaffShellInner({ children }: { children: React.ReactNode }) {
         exact: true,
       },
     ];
-    if (canInbox) {
-      items.push({
-        href: "/admin/inbox",
-        label: isKy ? "Өтүнмөлөр" : "Заявки",
-        icon: Inbox,
-        badge: pendingCount || undefined,
-      });
-    }
     if (canJournal) {
       items.push({
         href: "/admin/appeals",
         label: isKy ? "Кайрылуулар" : "Заявки и обращения",
         icon: FileText,
+        badge: canInbox ? pendingCount || undefined : undefined,
       });
     }
     if (canControl) {
@@ -233,11 +225,10 @@ function StaffShellInner({ children }: { children: React.ReactNode }) {
   const canOpenAppealCard = canJournal || can(currentUser, "viewCard");
 
   // Правило доступа к разделу по роли — тот же набор условий, что и для
-  // видимости пункта меню (canInbox/canCalendar/…). Раньше проверялся
+  // видимости пункта меню (canCalendar/canJournal/…). Раньше проверялся
   // только факт входа, но не роль: сотрудник мог открыть скрытый в меню
   // раздел прямым URL и увидеть данные, к которым не должен иметь доступ.
   const routeGuards: { prefix: string; allowed: boolean }[] = [
-    { prefix: "/admin/inbox", allowed: canInbox },
     { prefix: "/admin/calendar", allowed: canCalendar },
     {
       prefix: "/admin/appeals",
@@ -292,13 +283,6 @@ function StaffShellInner({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-
-  const roleLabel: Record<string, string> = {
-    admin: isKy ? "Администратор" : "Администратор",
-    reception: isKy ? "Маалымдама" : "Справочная",
-    leadership: isKy ? "Төрага" : "Председатель",
-    responsible: isKy ? "Аткаруучу" : "Исполнитель",
-  };
 
   function isActive(item: NavItem) {
     const prefixes = item.prefixes || [item.href];
@@ -456,7 +440,7 @@ function StaffShellInner({ children }: { children: React.ReactNode }) {
               {currentUser.fullName}
             </div>
             <div className="truncate text-xs text-slate-500">
-              {roleLabel[currentUser.role]}
+              {roleLabelText(currentUser.role, isKy)}
             </div>
           </div>
           <button
@@ -532,13 +516,13 @@ function StaffShellInner({ children }: { children: React.ReactNode }) {
                   : "Приём граждан"}
             </div>
             <div className="hidden truncate text-xs text-slate-500 sm:block">
-              {roleLabel[currentUser.role]} · {currentUser.position}
+              {roleLabelText(currentUser.role, isKy)} · {currentUser.position}
             </div>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-2">
             {canInbox && pendingCount > 0 && !survey && (
               <Link
-                href="/admin/inbox"
+                href="/admin/appeals?bucket=pending"
                 className="hidden items-center rounded-lg bg-court-navy px-3 py-1.5 text-xs font-semibold text-white hover:bg-court-navy/90 sm:inline-flex"
               >
                 {isKy ? "Өтүнмөлөр" : "Заявки"}: {pendingCount}

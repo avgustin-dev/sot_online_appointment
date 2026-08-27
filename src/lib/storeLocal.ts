@@ -260,7 +260,7 @@ export function wrapLocal(store: LocalStoreApi) {
             at: createdAt,
             channel: "system",
             title: "Заявка поступила",
-            body: "Запись вступит в силу после подтверждения справочной.",
+            body: "Запись вступит в силу после подтверждения приёмной.",
             read: false,
           },
         ],
@@ -417,7 +417,7 @@ export function wrapLocal(store: LocalStoreApi) {
         return {
           ok: false as const,
           error:
-            "Изменение сведений доступно до подтверждения заявки справочной службой.",
+            "Изменение сведений доступно до подтверждения заявки приёмной.",
         };
       }
       const fullName = (patch.fullName ?? apt.fullName).trim();

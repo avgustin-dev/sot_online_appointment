@@ -141,7 +141,7 @@ export default function StaffDashboardPage() {
     (role === "responsible" && !!myTarget);
   const isExecutorFocus = role === "responsible";
 
-  // Справочная не имеет /admin/control — ведём в реестр карточек;
+  // Приёмная не имеет /admin/control — ведём в реестр карточек;
   // подготовка и приём теперь на самой карточке, открываемой из «Заявки».
   const canOpenControl =
     role === "admin" || role === "leadership" || role === "responsible";
@@ -207,7 +207,7 @@ export default function StaffDashboardPage() {
         >
           {showInboxBlock && (
             <Link
-              href="/admin/inbox"
+              href="/admin/appeals?bucket=pending"
               className={`rounded-xl border bg-white p-4 shadow-sm transition hover:border-slate-300 ${
                 pending.length ? "border-sky-300" : "border-slate-200"
               }`}
@@ -286,7 +286,7 @@ export default function StaffDashboardPage() {
               {isKy ? "К кароого" : "К рассмотрению"}
             </h2>
             <Link
-              href="/admin/inbox"
+              href="/admin/appeals?bucket=pending"
               className="text-sm font-medium text-court-blue hover:underline"
             >
               {isKy ? "Бардыгы" : "Все заявки"}
@@ -296,7 +296,7 @@ export default function StaffDashboardPage() {
             {pending.slice(0, 5).map((a) => (
               <li key={a.id}>
                 <Link
-                  href="/admin/inbox"
+                  href="/admin/appeals?bucket=pending"
                   className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50"
                 >
                   <div className="min-w-0">

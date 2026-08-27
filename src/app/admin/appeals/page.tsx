@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FileText, Search } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { StatusBadge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { AdminHeading } from "@/components/staff/AdminHeading";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { useI18n } from "@/lib/i18n";
 import { targetShort } from "@/lib/targets";
 import { assignmentStatusLabel } from "@/lib/assignment";
@@ -44,15 +45,31 @@ function isoDay(iso: string | undefined): string {
   return iso.slice(0, 10);
 }
 
+type Bucket = "all" | "pending" | "prep" | "reception" | "control" | "closed";
+
 export default function AppealsListPage() {
+  return (
+    <Suspense fallback={<PageLoader label="Загрузка…" />}>
+      <AppealsListContent />
+    </Suspense>
+  );
+}
+
+function AppealsListContent() {
   const { state, currentUser } = useStore();
   const { t, lang } = useI18n();
   const isKy = lang === "ky";
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [bucket, setBucket] = useState<
-    "all" | "pending" | "prep" | "reception" | "control" | "closed"
-  >("all");
+  // Заход сразу в очередь новых заявок по ссылке (?bucket=pending) —
+  // например, из сводки или бейджа в меню. Читаем через useSearchParams,
+  // а не эффектом, чтобы значение оставалось верным и при переходе между
+  // страницами через next/link без размонтирования (Router Cache).
+  const searchParams = useSearchParams();
+  const urlBucket: Bucket | null =
+    searchParams.get("bucket") === "pending" ? "pending" : null;
+  const [manualBucket, setBucket] = useState<Bucket | null>(null);
+  const bucket = manualBucket ?? urlBucket ?? "all";
   const [sort, setSort] = useState<SortState<AppealSortKey>>({
     key: null,
     dir: "asc",
@@ -71,7 +88,7 @@ export default function AppealsListPage() {
       .filter((a) => inPeriod.has(a.appointmentId))
       .filter((a) => {
         // Председателю — только подтверждённые записи на его адресата:
-        // до подтверждения заявка ещё на рассмотрении справочной, а после
+        // до подтверждения заявка ещё на рассмотрении приёмной, а после
         // приёма он ведёт её через «Поручения», а не через этот список.
         if (currentUser?.role !== "leadership" || !currentUser.targetId) {
           return true;

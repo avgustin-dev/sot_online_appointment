@@ -56,7 +56,7 @@ type DemoRow = {
 };
 
 const ROWS: DemoRow[] = [
-  // 1–3 — поступившие (справочная подтверждает/отклоняет)
+  // 1–3 — поступившие (приёмная подтверждает/отклоняет)
   {
     n: 1,
     fullName: "Асанова Гульмира Токтосуновна",
@@ -302,7 +302,7 @@ const ROWS: DemoRow[] = [
     protocol: {
       leadershipExplanation: "Разъяснения даны на приёме.",
       assignmentText: "Направить письменный ответ заявителю.",
-      specialistsInvolved: "Справочная",
+      specialistsInvolved: "Приёмная",
     },
     assignment: {
       text: "Направить письменный ответ заявителю.",
@@ -414,7 +414,7 @@ const ROWS: DemoRow[] = [
     fullName: "Кыдырбаева Айзада Талантбековна",
     phone: "+996 700 111 017",
     email: "kydyrbaeva@example.kg",
-    topic: "Перенос записи по инициативе справочной",
+    topic: "Перенос записи по инициативе приёмной",
     category: "organization",
     region: "г. Бишкек",
     locality: "Бишкек",
@@ -485,7 +485,7 @@ const ROWS: DemoRow[] = [
     protocol: {
       leadershipExplanation: "Повторно разъяснён порядок.",
       assignmentText: "Направить повторный ответ со ссылкой на предыдущий.",
-      specialistsInvolved: "Справочная",
+      specialistsInvolved: "Приёмная",
     },
     assignment: {
       text: "Направить повторный ответ со ссылкой на предыдущий.",
@@ -562,6 +562,16 @@ export function buildDemoDataset(from = new Date()): {
         detail: row.reviewNote,
       });
     }
+    // Завершение цикла (ответ гражданину) — отдельная запись в истории,
+    // как её добавляет реальный submitFinalAnswer, а не часть «Принята».
+    if (row.status === "completed" && row.finalAnswer) {
+      history.push({
+        at: createdAt,
+        action: "Завершена",
+        staffName:
+          row.assignment?.responsibleName || "Бакирова Нургуль Жакыповна",
+      });
+    }
 
     const apt: Appointment = {
       id: aptId,
@@ -597,7 +607,7 @@ export function buildDemoDataset(from = new Date()): {
         at: createdAt,
         channel: "system",
         title: "Заявка поступила",
-        body: "Запись вступит в силу после подтверждения справочной.",
+        body: "Запись вступит в силу после подтверждения приёмной.",
         read: true,
       },
     ];

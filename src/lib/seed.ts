@@ -28,7 +28,7 @@ export const SEED_STAFF: StaffUser[] = [
     password: "1111",
     fullName: "Касымова Айгуль Бакытовна",
     role: "reception",
-    position: "Специалист справочной",
+    position: "Специалист приёмной",
     department: "Общественная приёмная",
     targetId: "reception",
   },
@@ -62,7 +62,7 @@ export function ensureSeedStaff(staff: StaffUser[]): StaffUser[] {
   // пароль пуст (например, был затёрт старой версией hydrateStaffSession),
   // восстанавливаем пароль из сида, чтобы демо-вход не ломался. Аналогично
   // подтягиваем targetId, если в сохранённом штате его ещё нет (например,
-  // справочная получила свой график только в новой версии сида).
+  // приёмная получила свой график только в новой версии сида).
   let repaired = false;
   const withPasswords = staff.map((s) => {
     const seedMatch = SEED_STAFF.find(

@@ -221,7 +221,7 @@ export default function AdminHelpPage() {
               {isKy ? "Өтүнмөлөрдү кароо" : "Рассмотрение заявок"}
             </strong>
             <br />
-            <Link href="/admin/inbox" className="text-court-blue">
+            <Link href="/admin/appeals?bucket=pending" className="text-court-blue">
               {isKy ? "Өтүнмөлөр" : "Заявки на проверке"}
             </Link>
             <br />
