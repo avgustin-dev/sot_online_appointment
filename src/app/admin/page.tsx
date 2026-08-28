@@ -15,6 +15,7 @@ import { useI18n } from "@/lib/i18n";
 import { AdminHeading } from "@/components/staff/AdminHeading";
 import { targetShort } from "@/lib/targets";
 import { assignmentStatusLabel } from "@/lib/assignment";
+import { appointmentVisibleTo, awaitingChairmanAssign } from "@/lib/acl";
 
 export default function StaffDashboardPage() {
   const { state, currentUser } = useStore();
@@ -42,11 +43,11 @@ export default function StaffDashboardPage() {
         a.status !== "cancelled" &&
         a.status !== "rejected"
     );
-    if (
-      (role === "leadership" || role === "responsible") &&
-      myTarget
-    ) {
+    if (role === "responsible" && myTarget) {
       list = list.filter((a) => a.targetId === myTarget);
+    }
+    if (role === "leadership") {
+      list = list.filter((a) => appointmentVisibleTo(currentUser, a));
     }
     if (role === "responsible" && !myTarget) {
       // только записи, связанные с поручениями исполнителя
@@ -64,18 +65,17 @@ export default function StaffDashboardPage() {
     today,
     role,
     myTarget,
-    currentUser?.id,
+    currentUser,
   ]);
 
   const prep = state.appeals.filter((a) => {
     const apt = state.appointments.find((x) => x.id === a.appointmentId);
     if (!apt || apt.status === "pending_review" || apt.status === "rejected")
       return false;
-    if (
-      (role === "leadership" || role === "responsible") &&
-      myTarget &&
-      apt.targetId !== myTarget
-    ) {
+    if (role === "responsible" && myTarget && apt.targetId !== myTarget) {
+      return false;
+    }
+    if (role === "leadership" && !appointmentVisibleTo(currentUser, apt)) {
       return false;
     }
     return ["registered", "under_review"].includes(a.stage);
@@ -85,11 +85,10 @@ export default function StaffDashboardPage() {
     const apt = state.appointments.find((x) => x.id === a.appointmentId);
     if (!apt || apt.status === "pending_review" || apt.status === "rejected")
       return false;
-    if (
-      (role === "leadership" || role === "responsible") &&
-      myTarget &&
-      apt.targetId !== myTarget
-    ) {
+    if (role === "responsible" && myTarget && apt.targetId !== myTarget) {
+      return false;
+    }
+    if (role === "leadership" && !appointmentVisibleTo(currentUser, apt)) {
       return false;
     }
     return a.stage === "ready_for_reception";
@@ -108,6 +107,11 @@ export default function StaffDashboardPage() {
     (a) => a.assignment?.dueDate && a.assignment.dueDate < today
   );
 
+  const toAssign = state.appeals.filter((a) => {
+    const apt = state.appointments.find((x) => x.id === a.appointmentId);
+    return awaitingChairmanAssign(a, apt);
+  });
+
   function appealIdForApt(aptId: string) {
     return state.appeals.find((a) => a.appointmentId === aptId)?.id;
   }
@@ -123,8 +127,8 @@ export default function StaffDashboardPage() {
           : "Ваш раздел: исполнение поручений и ответ заявителю."
         : role === "leadership"
           ? isKy
-            ? "Жеке кабыл алуу жана протокол."
-            : "Личный приём и протокол."
+            ? "Ырасталган жазылуулар: тапшырма берүү же өзүңүз аткаруу."
+            : "Подтверждённые записи: назначить поручение или исполнить самому."
           : role === "reception"
             ? isKy
               ? "Сиздин бөлүм: өтүнмөлөрдү кароо жана карточканы даярдоо."
@@ -374,6 +378,46 @@ export default function StaffDashboardPage() {
                   </Link>
                 </li>
               ))}
+          </ul>
+        </section>
+      )}
+
+      {showReceptionBlock &&
+        (role === "leadership" || role === "admin") &&
+        toAssign.length > 0 && (
+        <section className="rounded-xl border border-sky-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-900">
+              {isKy ? "Тапшырма берүү" : "Назначить поручение"}
+            </h2>
+            <Link
+              href="/admin/appeals"
+              className="text-sm font-medium text-court-blue hover:underline"
+            >
+              {isKy ? "Бардыгы" : "Все"}
+            </Link>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {toAssign.slice(0, 8).map((a) => (
+              <li key={a.id}>
+                <Link
+                  href={`/admin/appeals/${a.id}`}
+                  className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-slate-900">
+                      {a.fullName}
+                    </div>
+                    <div className="truncate text-xs text-slate-500">
+                      {a.code} · {a.topic}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs font-medium text-court-navy">
+                    {isKy ? "Поручить / өзүм" : "Поручить / самому"}
+                  </span>
+                </Link>
+              </li>
+            ))}
           </ul>
         </section>
       )}

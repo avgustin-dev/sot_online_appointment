@@ -1,0 +1,50 @@
+···  === 0. Сервер ===
+OK   GET / 200
+···  === 1. Публичные страницы ===
+OK   страница /
+OK   страница /electronic-appointment
+OK   страница /appointment-status
+OK   страница /appointment-rules
+OK   страница /service-evaluation
+···  === 2. Электронная запись ===
+OK   заявка создана, выдан код VS-…
+OK   запись в store
+···  === 3. Приёмная: подтверждение ===
+OK   заявка видна приёмной
+OK   приёмная подтвердила заявку
+···  === 4. Кабинет приёмной: разделы ===
+OK   приёмная /admin
+OK   приёмная /admin/appeals
+OK   приёмная /admin/calendar
+OK   приёмная /admin/analytics
+OK   приёмная /admin/content
+OK   приёмная /admin/settings
+OK   приёмная /admin/journal
+OK   приёмная /admin/help
+OK   приёмная /admin/my-schedule
+···  === 5. Председатель: очередь и поручение ===
+OK   сводка председателя показывает запись
+OK   председатель видит запись в заявках
+OK   запись в поручениях у председателя
+OK   после «Назначить» модалка осталась открытой
+OK   сообщение «исполнитель назначен»
+···  === 6. Заместитель: статус (не закрывать) и завершение (закрыть) ===
+OK   исполнитель видит поручение
+OK   после смены статуса модалка не закрылась
+OK   после завершения протокола модалка закрылась
+···  === 7. Админ: все разделы + сайдбар ===
+OK   admin /admin
+OK   admin /admin/appeals
+OK   admin /admin/control
+OK   admin /admin/calendar
+OK   admin /admin/analytics
+OK   admin /admin/content
+OK   admin /admin/eligibility
+OK   admin /admin/settings
+OK   admin /admin/survey
+OK   admin /admin/journal
+OK   admin /admin/help
+OK   admin /admin/my-schedule
+OK   кнопка «Выход» в зоне экрана при длинной странице
+OK   карточка тестовой записи закрыта
+OK   нет необработанных JS-ошибок

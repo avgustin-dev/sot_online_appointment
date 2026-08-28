@@ -29,11 +29,10 @@ import type { AppealCategory } from "@/lib/types";
 
 /**
  * Карточка обращения — информация + компактные действия по этапам:
- * подготовка (приёмная), личный приём с протоколом и первым поручением
- * (руководство), затем поручить/исполнить самому (после приёма), перенос и
- * отмена записи. Смена статуса записи и этапа обращения вручную больше не
- * нужна: каждый статус/этап наступает как следствие настоящего действия
- * (подтверждение, приём, ответ, оценка) — см. историю правок статусов.
+ * подтверждение (приёмная), подготовка, поручение / исполнение самим
+ * (председатель после подтверждения), личный приём с протоколом,
+ * перенос и отмена. Смена статуса записи и этапа обращения вручную больше не
+ * нужна: каждый статус/этап наступает как следствие настоящего действия.
  */
 export default function AppealDetailPage() {
   const params = useParams();
@@ -155,11 +154,16 @@ export default function AppealDetailPage() {
   const canAssignRole =
     !!currentUser &&
     (currentUser.role === "leadership" || currentUser.role === "admin");
-  // Поручение появляется вместе с протоколом приёма; здесь — только
-  // поручить/переназначить уже принятое обращение (в т.ч. себе), иначе
-  // поручение осталось бы невидимым исполнителю. После "closed" обращение
-  // завершено — поручать уже некому, карточка становится просмотром истории.
-  const canAssign = canAssignRole && appeal.stage === "in_control";
+  // После подтверждения приёмной председатель поручает или берёт сам;
+  // на контроле те же кнопки — переназначение. После closed — только просмотр.
+  const canAssign =
+    canAssignRole &&
+    ["registered", "under_review", "ready_for_reception", "in_control"].includes(
+      appeal.stage
+    ) &&
+    appointment?.status !== "pending_review" &&
+    appointment?.status !== "rejected" &&
+    appointment?.status !== "cancelled";
   const canCancel = !!currentUser && can(currentUser, "cancelAppointment");
   const canReschedule =
     !!currentUser && can(currentUser, "rescheduleAppointment");
@@ -178,7 +182,12 @@ export default function AppealDetailPage() {
   const canConductReception =
     can(currentUser, "conductReception") &&
     can(currentUser, "assignExecutor") &&
-    appeal.stage === "ready_for_reception";
+    ["registered", "under_review", "ready_for_reception"].includes(
+      appeal.stage
+    ) &&
+    appointment?.status !== "pending_review" &&
+    appointment?.status !== "rejected" &&
+    appointment?.status !== "cancelled";
 
   function flash(ok: boolean, text: string) {
     setErr(!ok);
@@ -481,10 +490,7 @@ export default function AppealDetailPage() {
               )}
               {canAssignRole && !canAssign && appeal.stage !== "closed" && (
                 <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
-                  Поручение появляется вместе с протоколом личного приёма —
-                  сначала нажмите «Провести приём» в блоке «Действия» ниже.
-                  Здесь можно только поручить (или переназначить) уже
-                  принятое обращение.
+                  Поручение можно выдать после подтверждения заявки приёмной.
                 </p>
               )}
             </div>

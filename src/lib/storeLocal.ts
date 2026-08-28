@@ -870,24 +870,22 @@ export function wrapLocal(store: LocalStoreApi) {
       if (!resp) return { ok: false as const, error: "Сотрудник не найден." };
       const apl = store.getState().appeals.find((a) => a.id === appealId);
       if (!apl) return { ok: false as const, error: "Карточка не найдена." };
-      // Первичное поручение создаётся вместе с протоколом приёма
-      // (completeReception) — там же выставляется stage "in_control", по
-      // которому исполнитель видит карточку в "Поручениях". Это действие —
-      // только переназначение уже принятого обращения на другого сотрудника;
-      // на "сыром" обращении оно оставляло бы поручение, невидимое
-      // исполнителю (этап карточки не сдвигался). После "closed" обращение
-      // уже завершено (ответ гражданину направлен) — переназначать некого.
-      if (apl.stage !== "in_control") {
+      // После подтверждения приёмной председатель может сразу поручить
+      // или взять в работу. Если карточка ещё не на контроле — переводим
+      // на in_control, иначе исполнитель не увидит её в «Поручениях».
+      // После closed переназначать некого.
+      if (apl.stage === "closed" || apl.stage === "cancelled") {
         return {
           ok: false as const,
           error:
             apl.stage === "closed"
               ? "Обращение уже завершено — поручение нельзя изменить."
-              : "Сначала нужно провести личный приём и зафиксировать протокол — поручение появляется вместе с ним.",
+              : "Обращение отменено — поручение назначить нельзя.",
         };
       }
       const createdAt = nowIso();
       patchApl(store, appealId, {
+        stage: "in_control",
         assignment: {
           text: text.trim() || apl.assignment?.text || "",
           responsibleUserId: resp.id,

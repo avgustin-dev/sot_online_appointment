@@ -30,6 +30,7 @@ import {
   filterByPeriod,
   type ReportPeriod,
 } from "@/lib/reportPeriods";
+import { appointmentVisibleTo } from "@/lib/acl";
 
 type AppealSortKey =
   | "name"
@@ -87,14 +88,11 @@ function AppealsListContent() {
     const rows = state.appeals
       .filter((a) => inPeriod.has(a.appointmentId))
       .filter((a) => {
-        // Председателю — только подтверждённые записи на его адресата:
-        // до подтверждения заявка ещё на рассмотрении приёмной, а после
-        // приёма он ведёт её через «Поручения», а не через этот список.
-        if (currentUser?.role !== "leadership" || !currentUser.targetId) {
-          return true;
-        }
+        // Председателю — все подтверждённые записи (не только на его
+        // личный график: заявка часто идёт на приёмную).
+        if (currentUser?.role !== "leadership") return true;
         const apt = state.appointments.find((x) => x.id === a.appointmentId);
-        return apt?.status === "confirmed" && apt.targetId === currentUser.targetId;
+        return apt ? appointmentVisibleTo(currentUser, apt) : false;
       })
       .filter((a) => {
         const apt = state.appointments.find((x) => x.id === a.appointmentId);

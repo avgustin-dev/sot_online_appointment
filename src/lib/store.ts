@@ -35,7 +35,7 @@ import { wrapLocal } from "./storeLocal";
 import { buildSeedState, defaultCalendar, ensureSeedStaff } from "./seed";
 
 export const STORAGE_KEY = "vs-kr-citizen-platform-v15";
-const STATE_VERSION = 15;
+const STATE_VERSION = 16;
 
 function seedEligibilityTree(): EligibilityTreeNode[] {
   return cloneEligibilityTree() as EligibilityTreeNode[];
@@ -343,7 +343,7 @@ export const usePlatformStore = create<PlatformStore>()(
           actionLog: s.actionLog,
         };
       },
-      migrate: (persisted) => {
+      migrate: (persisted, fromVersion) => {
         const p = persisted as Partial<PlatformState>;
         if (useRemoteApi) {
           return {
@@ -354,14 +354,20 @@ export const usePlatformStore = create<PlatformStore>()(
         }
         const seed = initialData();
         const staff = p.staff?.length ? ensureSeedStaff(p.staff) : seed.staff;
+        // v16: убрать учебные заявки из localStorage, штат и CMS не трогать
+        const dropSeededRecords = fromVersion < 16;
         return {
           ...seed,
           ...p,
           version: STATE_VERSION,
           staff,
-          appointments: p.appointments ?? seed.appointments,
-          appeals: p.appeals ?? seed.appeals,
-          actionLog: p.actionLog ?? seed.actionLog,
+          appointments: dropSeededRecords
+            ? []
+            : (p.appointments ?? seed.appointments),
+          appeals: dropSeededRecords ? [] : (p.appeals ?? seed.appeals),
+          actionLog: dropSeededRecords
+            ? []
+            : (p.actionLog ?? seed.actionLog),
           calendar: p.calendar ?? seed.calendar,
           serviceContent: p.serviceContent ?? seed.serviceContent,
         } as PlatformState;

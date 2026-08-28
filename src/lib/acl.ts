@@ -153,23 +153,51 @@ export function seesAllQueue(
   return can(user, "viewAllAppointments");
 }
 
-/** Заявки «на личный приём» председателя / исполнителя — только свой адресат. */
+const AFTER_CONFIRM: AppointmentStatus[] = [
+  "confirmed",
+  "accepted",
+  "rescheduled",
+  "completed",
+  "no_show",
+];
+
+/**
+ * Очередь после подтверждения приёмной.
+ * Председатель видит все такие записи (запись часто идёт на «приёмную»,
+ * а не на его личный график). Зам. / исполнитель — только свой адресат.
+ */
 export function appointmentVisibleTo(
   user: StaffActor | null | undefined,
   apt: Pick<Appointment, "targetId" | "status">
 ): boolean {
   if (!user) return false;
   if (seesAllQueue(user)) return true;
+  if (user.role === "leadership") {
+    return AFTER_CONFIRM.includes(apt.status);
+  }
   const mine = ownTargetId(user);
   if (!mine) return false;
   if (apt.targetId !== mine) return false;
-  return [
-    "confirmed",
-    "accepted",
-    "rescheduled",
-    "completed",
-    "no_show",
-  ].includes(apt.status);
+  return AFTER_CONFIRM.includes(apt.status);
+}
+
+/**
+ * Подтверждено приёмной, поручение ещё не выдано — очередь председателя:
+ * назначить исполнителя или взять в работу самому.
+ */
+export function awaitingChairmanAssign(
+  appeal: {
+    stage: string;
+    assignment?: { responsibleUserId?: string } | null;
+  },
+  apt: Pick<Appointment, "status"> | undefined
+): boolean {
+  if (!apt) return false;
+  if (apt.status !== "confirmed" && apt.status !== "rescheduled") return false;
+  if (appeal.assignment?.responsibleUserId) return false;
+  return ["registered", "under_review", "ready_for_reception"].includes(
+    appeal.stage
+  );
 }
 
 /**

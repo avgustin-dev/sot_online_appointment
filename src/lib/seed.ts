@@ -102,8 +102,7 @@ export function defaultCalendar(): CalendarSettings {
 
 /**
  * Стартовое состояние платформы.
- * При NEXT_PUBLIC_DEMO !== "false" (локальный контур) — 20 учебных заявок
- * на все этапы цикла. Без демо — пустые списки.
+ * Учебные заявки — только при NEXT_PUBLIC_DEMO=true. Иначе списки пустые.
  */
 export function buildSeedState(): PlatformState {
   const calendar = defaultCalendar();

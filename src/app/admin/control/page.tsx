@@ -30,7 +30,7 @@ import {
 import type { AssignmentStatus } from "@/lib/types";
 import { EllipsisText } from "@/components/ui/EllipsisText";
 import { ReportPanel } from "@/components/staff/ReportPanel";
-import { can } from "@/lib/acl";
+import { can, awaitingChairmanAssign } from "@/lib/acl";
 
 export default function ControlPage() {
   const {
@@ -60,16 +60,27 @@ export default function ControlPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   const items = useMemo(() => {
-    let list = state.appeals.filter((a) =>
-      ["in_control", "reception_done", "closed"].includes(a.stage)
-    );
+    let list = state.appeals.filter((a) => {
+      if (["in_control", "reception_done", "closed"].includes(a.stage)) {
+        return true;
+      }
+      if (currentUser?.role === "responsible") return false;
+      const apt = state.appointments.find((x) => x.id === a.appointmentId);
+      return awaitingChairmanAssign(a, apt);
+    });
     if (currentUser?.role === "responsible") {
       list = list.filter((a) => a.assignment?.responsibleUserId === currentUser.id);
     }
     if (filter === "open") {
-      list = list.filter(
-        (a) => a.stage === "in_control" && a.assignment && a.assignment.status !== "done"
-      );
+      list = list.filter((a) => {
+        const apt = state.appointments.find((x) => x.id === a.appointmentId);
+        if (awaitingChairmanAssign(a, apt)) return true;
+        return (
+          a.stage === "in_control" &&
+          a.assignment &&
+          a.assignment.status !== "done"
+        );
+      });
     }
     if (filter === "overdue") {
       list = list.filter(
@@ -104,6 +115,11 @@ export default function ControlPage() {
     }
     // Новые сверху; просроченные в фильтре «все/в работе» поднимаем выше
     return [...list].sort((a, b) => {
+      const aptA = state.appointments.find((x) => x.id === a.appointmentId);
+      const aptB = state.appointments.find((x) => x.id === b.appointmentId);
+      const pa = awaitingChairmanAssign(a, aptA) ? 0 : 1;
+      const pb = awaitingChairmanAssign(b, aptB) ? 0 : 1;
+      if (pa !== pb) return pa - pb;
       if (filter === "all" || filter === "open") {
         const ao =
           a.stage === "in_control" &&
@@ -123,12 +139,20 @@ export default function ControlPage() {
       }
       return (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt);
     });
-  }, [state.appeals, currentUser, filter, today, q]);
+  }, [state.appeals, state.appointments, currentUser, filter, today, q]);
 
   const { page, setPage, totalPages, slice, total, pageSize } =
     usePagedList(items);
 
-  const selected = items.find((a) => a.id === selectedId);
+  const selected = state.appeals.find((a) => a.id === selectedId);
+  const selectedApt = selected
+    ? state.appointments.find((x) => x.id === selected.appointmentId)
+    : undefined;
+  const selectedAwaiting = selected
+    ? awaitingChairmanAssign(selected, selectedApt)
+    : false;
+  const canAssignNow =
+    canAssign && (selected?.stage === "in_control" || selectedAwaiting);
   // "responsible" ведёт только свои поручения; "leadership" — тоже только
   // свои, и только те, что назначил себе через «Исполнить самому» на
   // карточке (обычно поручает "responsible", а не ведёт сам). Admin — любые.
@@ -148,15 +172,26 @@ export default function ControlPage() {
   }, [selected?.id, selected?.assignment?.status, selected?.assignment?.responsibleUserId, selected?.assignment?.text]);
 
   const counts = useMemo(() => {
-    let base = state.appeals.filter((a) =>
-      ["in_control", "reception_done", "closed"].includes(a.stage)
-    );
+    let base = state.appeals.filter((a) => {
+      if (["in_control", "reception_done", "closed"].includes(a.stage)) {
+        return true;
+      }
+      if (currentUser?.role === "responsible") return false;
+      const apt = state.appointments.find((x) => x.id === a.appointmentId);
+      return awaitingChairmanAssign(a, apt);
+    });
     if (currentUser?.role === "responsible") {
       base = base.filter((a) => a.assignment?.responsibleUserId === currentUser.id);
     }
-    const open = base.filter(
-      (a) => a.stage === "in_control" && a.assignment && a.assignment.status !== "done"
-    ).length;
+    const open = base.filter((a) => {
+      const apt = state.appointments.find((x) => x.id === a.appointmentId);
+      if (awaitingChairmanAssign(a, apt)) return true;
+      return (
+        a.stage === "in_control" &&
+        a.assignment &&
+        a.assignment.status !== "done"
+      );
+    }).length;
     const overdue = base.filter(
       (a) =>
         a.stage === "in_control" &&
@@ -168,7 +203,7 @@ export default function ControlPage() {
       (a) => a.stage === "closed" || a.assignment?.status === "done"
     ).length;
     return { open, overdue, done, all: base.length };
-  }, [state.appeals, currentUser, today]);
+  }, [state.appeals, state.appointments, currentUser, today]);
 
   function openItem(id: string) {
     setSelectedId(id);
@@ -196,7 +231,7 @@ export default function ControlPage() {
       setComment("");
     }
     setErr(false);
-    setSelectedId("");
+    setMsg(L("Статус поручения сохранён.", "Тапшырманын статусу сакталды."));
   }
 
   async function onAssign(e: React.FormEvent) {
@@ -215,7 +250,24 @@ export default function ControlPage() {
       return;
     }
     setErr(false);
-    setSelectedId("");
+    setMsg(L("Исполнитель назначен.", "Аткаруучу дайындалды."));
+  }
+
+  async function onSelfAssign() {
+    if (!selected || !currentUser) return;
+    const rec = await assignAppeal(
+      selected.id,
+      currentUser.id,
+      currentUser.fullName,
+      assignText.trim() || "Принято к исполнению лично."
+    );
+    if (rec && "ok" in rec && !rec.ok) {
+      setErr(true);
+      setMsg(rec.error);
+      return;
+    }
+    setErr(false);
+    setMsg(L("Вы назначены исполнителем.", "Сиз аткаруучу болуп дайындалдыңыз."));
   }
 
   async function onAnswer(e: React.FormEvent) {
@@ -342,8 +394,8 @@ export default function ControlPage() {
               q.trim()
                 ? L("Ничего не найдено по запросу.", "Издөө боюнча табылган жок.")
                 : L(
-                    "После личного приёма или поручения обращения появятся здесь.",
-                    "Жеке кабыл алуудан кийин бул жерде пайда болот."
+                    "После подтверждения заявки приёмной обращение появится здесь — назначьте поручение или исполните сами.",
+                    "Кабыл алуу ырастагандан кийин бул жерде пайда болот."
                   )
             }
             className="border-0 shadow-none"
@@ -452,7 +504,7 @@ export default function ControlPage() {
               {assignmentStatusLabel(selected.assignment?.status, isKy)}
             </div>
 
-            {canAssign && selected.stage === "in_control" && (
+            {canAssignNow && (
               <form onSubmit={onAssign} className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
                 <div className="text-xs font-semibold text-slate-600">
                   {L("Назначить исполнителя (ФИО)", "Аткаруучуну дайындоо")}
@@ -481,11 +533,22 @@ export default function ControlPage() {
                   value={assignText}
                   onChange={(e) => setAssignText(e.target.value)}
                   placeholder={L("Содержание поручения", "Тапшырманын тексти")}
-                  required
+                  required={!selectedAwaiting}
                 />
-                <button type="submit" className="btn-primary !text-sm">
-                  {L("Назначить", "Дайындоо")}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button type="submit" className="btn-primary !text-sm">
+                    {L("Назначить", "Дайындоо")}
+                  </button>
+                  {selectedAwaiting && (
+                    <button
+                      type="button"
+                      className="btn-outline !text-sm"
+                      onClick={() => void onSelfAssign()}
+                    >
+                      {L("Исполнить самому", "Өзүм аткарам")}
+                    </button>
+                  )}
+                </div>
               </form>
             )}
 

@@ -336,9 +336,9 @@ function StaffShellInner({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[#f0f2f5] lg:flex">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[260px] max-w-[88vw] flex-col overflow-hidden border-r border-slate-200/80 bg-white shadow-sm transition-[width,transform,opacity] duration-300 ease-out",
+          "fixed inset-y-0 left-0 z-50 flex h-dvh w-[260px] max-w-[88vw] flex-col overflow-hidden border-r border-slate-200/80 bg-white shadow-sm transition-[width,transform,opacity] duration-300 ease-out",
           open ? "translate-x-0" : "-translate-x-full",
-          "lg:static lg:translate-x-0",
+          "lg:sticky lg:top-0 lg:z-40 lg:h-dvh lg:max-h-dvh lg:translate-x-0 lg:self-start",
           sidebarCollapsed
             ? "lg:pointer-events-none lg:w-0 lg:border-0 lg:opacity-0 lg:shadow-none"
             : "lg:w-[260px] lg:opacity-100"
