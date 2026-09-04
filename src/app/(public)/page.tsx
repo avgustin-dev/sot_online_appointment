@@ -12,6 +12,7 @@ import { formatDateRu } from "@/lib/slots";
 import { mergeServiceContent, pickLocale } from "@/lib/serviceContent";
 import { CourtContactsBlock } from "@/components/ui/CourtContactsBlock";
 import { CitizenHubNav } from "@/components/layout/CitizenHubNav";
+import { PhoneInput } from "@/components/ui/PhoneInput";
 
 /**
  * Хаб раздела «Приём граждан руководством Верховного суда Кыргызской Республики»
@@ -243,11 +244,10 @@ export default function HomePage() {
                 {isKy ? "Кодду калыбына келтирүү" : "Восстановление кода"}
               </h2>
               <form onSubmit={onRecover} className="mt-3 space-y-2">
-                <input
-                  className="input"
+                <PhoneInput
                   value={recoverPhone}
-                  onChange={(e) => setRecoverPhone(e.target.value)}
-                  placeholder="+996 XXX XXX XXX"
+                  onChange={setRecoverPhone}
+                  autoComplete="tel"
                 />
                 <button type="submit" className="btn-outline w-full !py-2">
                   {isKy ? "Кодду табуу" : "Найти код"}

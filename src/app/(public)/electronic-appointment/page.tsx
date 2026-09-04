@@ -32,6 +32,8 @@ import {
 import { bookableTargets } from "@/lib/targets";
 import { mergeServiceContent, pickLocale } from "@/lib/serviceContent";
 import { saveMyBookingRef } from "@/lib/myBooking";
+import { PhoneInput } from "@/components/ui/PhoneInput";
+import { isCompleteKgPhone } from "@/lib/phoneMask";
 
 function RadioBlock({
   name,
@@ -133,7 +135,7 @@ export default function BookPage() {
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState("+996 ");
   const [email, setEmail] = useState("");
   const [applicantType, setApplicantType] = useState("citizen");
 
@@ -141,7 +143,7 @@ export default function BookPage() {
   const [locality, setLocality] = useState("");
   const [street, setStreet] = useState("");
 
-  const [target, setTarget] = useState("reception");
+  const [target, setTarget] = useState("");
   const [topic, setTopic] = useState("");
   const [category, setCategory] = useState<AppealCategory>("organization");
   const [description, setDescription] = useState("");
@@ -256,7 +258,7 @@ export default function BookPage() {
           "Укажите фамилию и имя заявителя.",
           "Кайрылуучунун фамилиясы менен атын жазыңыз."
         );
-      if (!phone.trim() || phone.replace(/\D/g, "").length < 9)
+      if (!phone.trim() || !isCompleteKgPhone(phone))
         return L(
           "Укажите корректный номер телефона заявителя.",
           "Кайрылуучунун телефон номерин туура киргизиңиз."
@@ -592,12 +594,10 @@ export default function BookPage() {
                     {L("Контактный телефон", "Байланыш телефону")}{" "}
                     <span className="text-court-danger">*</span>
                   </label>
-                  <input
-                    className="input"
+                  <PhoneInput
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+996 XXX XXX XXX"
-                    autoComplete="tel"
+                    onChange={setPhone}
+                    required
                   />
                 </div>
                 <div>
@@ -715,7 +715,7 @@ export default function BookPage() {
                 </div>
               )}
               <div>
-                <label className="label">
+                <label className="label font-bold">
                   {L(
                     "К должностному лицу / подразделению",
                     "Кызмат адамы / бөлүм"
@@ -723,7 +723,7 @@ export default function BookPage() {
                   <span className="text-court-danger">*</span>
                 </label>
                 <select
-                  className="input"
+                  className="input font-bold"
                   value={target}
                   onChange={(e) => {
                     setTarget(e.target.value);
@@ -732,6 +732,9 @@ export default function BookPage() {
                     setSlotEnd("");
                   }}
                 >
+                  <option value="">
+                    {L("Выберите", "Тандаңыз")}
+                  </option>
                   {bookableTargets(sc).map((r) => (
                     <option key={r.id} value={r.id}>
                       {pickLocale(isKy, r.bookLabelRu, r.bookLabelKy)}
@@ -802,11 +805,9 @@ export default function BookPage() {
                   <label className="label">
                     {L("Телефон сопровождающего 1", "Коштоочу 1 телефону")}
                   </label>
-                  <input
-                    className="input"
+                  <PhoneInput
                     value={companionPhone}
-                    onChange={(e) => setCompanionPhone(e.target.value)}
-                    placeholder="+996 …"
+                    onChange={setCompanionPhone}
                   />
                 </div>
                 <div>
@@ -826,11 +827,9 @@ export default function BookPage() {
                   <label className="label">
                     {L("Телефон сопровождающего 2", "Коштоочу 2 телефону")}
                   </label>
-                  <input
-                    className="input"
+                  <PhoneInput
                     value={companion2Phone}
-                    onChange={(e) => setCompanion2Phone(e.target.value)}
-                    placeholder="+996 …"
+                    onChange={setCompanion2Phone}
                   />
                 </div>
               </div>
